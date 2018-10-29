@@ -204,7 +204,7 @@
     state: absent
   tags: 
     - daemon
-    - clean-dameon
+    - clean-daemon
 
 - name: Replace file with original contents
   copy:
