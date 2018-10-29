@@ -210,6 +210,7 @@
   copy:
     src: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
     dest: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    remote_src: yes
   become: true
   tags: clean-daemon
 
@@ -245,7 +246,9 @@
 
 - name: Systemctl daemon reload
   command: systemctl daemon-reload
-  tags: daemon
+  tags: 
+    - daemon
+    - clean-daemon
 
 - name: Start ImageIO Daemon Service
   service:
@@ -329,6 +332,7 @@
   copy:
     src: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
     dest: /usr/lib/systemd/system/ovirt-imageio-proxy.service
+    remote_src: yes
   become: true
   tags: clean-proxy
 
@@ -346,7 +350,9 @@
 
 - name: Systemctl daemon reload
   command: systemctl daemon-reload
-  tags: proxy
+  tags: 
+    - proxy
+    - clean-proxy
 
 - name: Start ImageIO Proxy Service
   service:
