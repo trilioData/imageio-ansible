@@ -190,12 +190,19 @@
     group: kvm
   tags: daemon
 
+- name: Check if Daemon was already configured.
+  stat:
+    path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
+  register: stat_result
+  tags: daemon
+
 - name: Rename existing ovirt-imageio service file to original before replacing
   copy:
     src: /usr/lib/systemd/system/ovirt-imageio-daemon.service
     dest: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
     remote_src: yes
   become: true
+  when: stat_result.stat.exists == False
   tags: daemon
 
 - name: Remove service file if already present
@@ -312,12 +319,19 @@
     recurse: yes 
   tags: proxy
 
+- name: Check if Proxy was already configured.
+  stat:
+    path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
+  register: stat_result
+  tags: proxy
+
 - name: Rename existing ovirt-imageio-proxy service file to original before replacing
   copy:
     src: /usr/lib/systemd/system/ovirt-imageio-proxy.service
     dest: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
     remote_src: yes
   become: true
+  when: stat_result.stat.exists == False
   tags: proxy
 
 - name: Remove service file if already present
@@ -361,7 +375,7 @@
     state: started
   tags: 
     - proxy
-    - clean-proxy
+    - clean-proxy 
 
 - name: Getting fqdn of host
   shell: python -c "import socket; print socket.gethostname()"
