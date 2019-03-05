@@ -1,26 +1,13 @@
 ---
 
-- name: Check if rsync service exists
-  service:
-    name: rsyncd
-    state: started
-    enabled: yes
-  register: rsync_service
-  tags:
-    - daemon
-    - proxy
-
-- name: Install rsync if it doesn't exist
-  yum:
-    name: rsync
-    state: latest
-  when: rsync_service.state != "started"
-  tags:
-    - daemon
-    - proxy
-
 - name: Read variables from triliovault-nodes file
   include_vars: /etc/ansible/group_vars/triliovault-nodes
+  tags:
+    - daemon
+    - proxy
+
+- name: Get ovirt-imageio tar file
+  shell: cd /opt/ && { curl -k -O https://"{{ virtual_ip }}"/ovirt-imageio.tar.gz ; cd -;}
   tags:
     - daemon
     - proxy
@@ -59,6 +46,9 @@
   file:
     path: "{{ mount_path }}"
     state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
   tags: daemon
 
 - name: Check mount point {{ mount_path }}
@@ -161,25 +151,20 @@
     - daemon
     - clean-daemon
 
-- name: Make /opt dir
-  file:
-    path: /opt/ovirt-imageio
-    state: directory
-  tags: 
-    - daemon
-
-- name: Get updated customized imageio code from git repository 
-  synchronize:
-    src: /opt/stack/ovirt-imageio/
-    dest: /opt/ovirt-imageio/
+- name: Untar ovirt-imageio tar file
+  unarchive:
+    src: /opt/ovirt-imageio.tar.gz
+    dest: /opt
+    copy: no
   tags: daemon
 
 - name: Change directory permissions
   file:
     path: /opt/ovirt-imageio
     state: directory
-    mode: 0777
-    recurse: yes 
+    owner: vdsm
+    group: kvm
+    recurse: yes
   tags: daemon
 
 - name: Create directory to record logs
@@ -188,6 +173,13 @@
     state: directory
     owner: vdsm
     group: kvm
+    recurse: yes
+  tags: daemon
+
+- name: Check if Daemon was already configured.
+  stat:
+    path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
+  register: stat_result
   tags: daemon
 
 - name: Check if Daemon was already configured.
@@ -211,13 +203,12 @@
     state: absent
   tags: 
     - daemon
-    - clean-daemon
+    - clean-dameon
 
 - name: Replace file with original contents
   copy:
     src: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
     dest: /usr/lib/systemd/system/ovirt-imageio-daemon.service
-    remote_src: yes
   become: true
   tags: clean-daemon
 
@@ -253,9 +244,7 @@
 
 - name: Systemctl daemon reload
   command: systemctl daemon-reload
-  tags: 
-    - daemon
-    - clean-daemon
+  tags: daemon
 
 - name: Start ImageIO Daemon Service
   service:
@@ -297,26 +286,26 @@
     - proxy
     - clean-proxy
 
-- name: Get updated customized imageio code from git repository 
-  synchronize:
-    src: /opt/stack/ovirt-imageio/
-    dest: /opt/ovirt-imageio/
-  tags: proxy
-
-- name: Change owner
-  file: 
-    path: /opt/ovirt-imageio
-    group: root
-    owner: root
-    recurse: yes
+- name: Untar ovirt-imageio tar file
+  unarchive:
+    src: /opt/ovirt-imageio.tar.gz
+    dest: /opt
+    copy: no
   tags: proxy
 
 - name: Change directory permissions
   file:
     path: /opt/ovirt-imageio
     state: directory
-    mode: 0777
-    recurse: yes 
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  tags: proxy
+
+- name: Check if Proxy was already configured.
+  stat:
+    path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
+  register: stat_result
   tags: proxy
 
 - name: Check if Proxy was already configured.
@@ -346,7 +335,6 @@
   copy:
     src: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
     dest: /usr/lib/systemd/system/ovirt-imageio-proxy.service
-    remote_src: yes
   become: true
   tags: clean-proxy
 
@@ -364,9 +352,7 @@
 
 - name: Systemctl daemon reload
   command: systemctl daemon-reload
-  tags: 
-    - proxy
-    - clean-proxy
+  tags: proxy
 
 - name: Start ImageIO Proxy Service
   service:
@@ -407,13 +393,32 @@
   delegate_to: 127.0.0.1
   tags: proxy
   
-- name: Get updated customized ovirt-engine ui code from git repository 
-  synchronize:
-    src: /opt/stack/rhvgui/
-    dest: /usr/share/ovirt-engine/ui-plugins/
+- name: Get rhvgui tar file
+  shell: cd /usr/share/ovirt-engine/ui-plugins/ && { curl -k -O https://"{{ virtual_ip }}"/rhvgui.tar.gz ; cd -;}
+  tags: proxy
+
+- name: Untar rhvgui tar file
+  unarchive:
+    src: /usr/share/ovirt-engine/ui-plugins/rhvgui.tar.gz
+    dest: /usr/share/ovirt-engine/ui-plugins
+    copy: no
   tags: proxy
 
 - name: main | updating rhvgui config file
   action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources/config/data.js
   tags:
     - proxy
+
+- name: Removing ovirt-imageio tar file
+  file:
+    state: absent
+    path: /opt/ovirt-imageio.tar.gz
+  tags:
+    - daemon
+    - proxy
+
+- name: Removing rhvgui tar file
+  file:
+    state: absent
+    path: /usr/share/ovirt-engine/ui-plugins/rhvgui.tar.gz
+  tags: proxy
