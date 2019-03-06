@@ -293,15 +293,6 @@
     copy: no
   tags: proxy
 
-- name: Change directory permissions
-  file:
-    path: /opt/ovirt-imageio
-    state: directory
-    owner: vdsm
-    group: kvm
-    recurse: yes
-  tags: proxy
-
 - name: Check if Proxy was already configured.
   stat:
     path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
