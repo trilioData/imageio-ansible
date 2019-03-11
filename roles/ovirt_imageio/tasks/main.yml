@@ -81,6 +81,20 @@
   command: mount -t nfs {{ storage_nfs_export }} {{ mount_path }}
   tags: daemon
 
+- name: Test for NFS mount entry in fstab 
+  shell: grep "^{{ storage_nfs_export }} {{ mount_path }}" /etc/fstab
+  register: test_grep
+  ignore_errors: yes
+  tags: daemon
+
+- name: Adding NFS mount entry in fstab
+  lineinfile:
+    line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180 36 36"
+    insertafter: EOF
+    dest: /etc/fstab
+  when: test_grep.stdout == ""
+  tags: daemon
+
 - name: Append empty line to daemon config file
   lineinfile:
     line: ''
