@@ -268,6 +268,10 @@
   command: systemctl start ovirt_celery
   tags: daemon
 
+- name: Enable Celery worker service
+  command: systemctl enable ovirt_celery
+  tags: daemon
+  
 # Proxy service deployment
 
 - name: Stop the existing ImageIO Proxy service
