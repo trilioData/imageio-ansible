@@ -217,6 +217,7 @@
   copy:
     src: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
     dest: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    remote_src: yes
   become: true
   tags: clean-daemon
 
@@ -328,6 +329,7 @@
   copy:
     src: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
     dest: /usr/lib/systemd/system/ovirt-imageio-proxy.service
+    remote_src: yes
   become: true
   tags: clean-proxy
 
@@ -395,6 +397,7 @@
     src: /usr/share/ovirt-engine/ui-plugins/rhvgui.tar.gz
     dest: /usr/share/ovirt-engine/ui-plugins
     copy: no
+    extra_opts: [--strip-components=1]
   tags: proxy
 
 - name: main | updating rhvgui config file
