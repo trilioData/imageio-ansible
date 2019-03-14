@@ -81,6 +81,20 @@
   command: mount -t nfs {{ storage_nfs_export }} {{ mount_path }}
   tags: daemon
 
+- name: Test for vdsm entry in /etc/sudoers 
+  shell: grep "^vdsm ALL = NOPASSWD" /etc/sudoers
+  register: test_sudoers
+  ignore_errors: yes
+  tags: daemon
+
+- name: Adding vdsm entry in /etc/sudoers
+  lineinfile:
+    line: "vdsm ALL = NOPASSWD: /usr/bin/mount"
+    insertafter: EOF
+    dest: /etc/sudoers
+  when: test_sudoers.stdout == ""
+  tags: daemon
+  
 - name: Test for NFS mount entry in fstab 
   shell: grep "^{{ storage_nfs_export }} {{ mount_path }}" /etc/fstab
   register: test_grep
