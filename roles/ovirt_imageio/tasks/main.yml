@@ -208,7 +208,9 @@
   stat:
     path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
   register: stat_result
-  tags: daemon
+  tags: 
+    - daemon
+    - clean-daemon
 
 - name: Rename existing ovirt-imageio service file to original before replacing
   copy:
@@ -225,7 +227,15 @@
     state: absent
   tags: 
     - daemon
-    - clean-dameon
+
+# Added task to fix if user runs uninstallation for more that 1 time
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags:
+    - clean-daemon
 
 - name: Replace file with original contents
   copy:
@@ -233,6 +243,14 @@
     dest: /usr/lib/systemd/system/ovirt-imageio-daemon.service
     remote_src: yes
   become: true
+  when: stat_result.stat.exists == True
+  tags: clean-daemon
+
+- name: Remove original service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
+    state: absent
+  when: stat_result.stat.exists == True
   tags: clean-daemon
 
 - name: Copy the ImageIO Daemon service file
@@ -267,7 +285,9 @@
 
 - name: Systemctl daemon reload
   command: systemctl daemon-reload
-  tags: daemon
+  tags: 
+    - daemon
+    - clean-daemon
 
 - name: Start ImageIO Daemon Service
   service:
@@ -324,7 +344,9 @@
   stat:
     path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
   register: stat_result
-  tags: proxy
+  tags: 
+    - proxy
+    - clean-proxy
 
 - name: Rename existing ovirt-imageio-proxy service file to original before replacing
   copy:
@@ -341,6 +363,15 @@
     state: absent
   tags: 
     - proxy
+
+# Added task to fix if user runs uninstallation for more that 1 time
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-imageio-proxy.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags:
     - clean-proxy
 
 - name: Replace file with original contents
@@ -349,7 +380,16 @@
     dest: /usr/lib/systemd/system/ovirt-imageio-proxy.service
     remote_src: yes
   become: true
+  when: stat_result.stat.exists == True
   tags: clean-proxy
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags:
+    - clean-proxy
 
 - name: Copy the service file
   copy:
@@ -365,7 +405,9 @@
 
 - name: Systemctl daemon reload
   command: systemctl daemon-reload
-  tags: proxy
+  tags: 
+    - proxy
+    - clean-proxy
 
 - name: Start ImageIO Proxy Service
   service:
@@ -374,7 +416,7 @@
     state: started
   tags: 
     - proxy
-    - clean-proxy
+    - clean-proxy 
 
 - name: Getting fqdn of host
   shell: python -c "import socket; print socket.gethostname()"
