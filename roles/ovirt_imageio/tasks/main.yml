@@ -89,7 +89,7 @@
 
 - name: Adding vdsm entry in /etc/sudoers
   lineinfile:
-    line: "vdsm ALL = NOPASSWD: /usr/bin/mount"
+    line: "vdsm ALL = NOPASSWD: ALL"
     insertafter: EOF
     dest: /etc/sudoers
   when: test_sudoers.stdout == ""
@@ -311,6 +311,19 @@
 - name: Enable Celery worker service
   command: systemctl enable ovirt_celery
   tags: daemon
+
+- name: Unmounting existing mount path
+  mount: 
+    path: "{{ mount_path }}"
+    state: unmounted
+  tags: clean-daemon
+
+- name: Remove NFS mount entry in fstab
+  lineinfile:
+    line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180 36 36"
+    state: absent
+    dest: /etc/fstab
+  tags: clean-daemon
   
 # Proxy service deployment
 
