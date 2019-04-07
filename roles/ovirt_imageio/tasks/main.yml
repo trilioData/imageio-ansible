@@ -5,6 +5,7 @@
   tags:
     - daemon
     - proxy
+    - clean-daemon
 
 - name: Get ovirt-imageio tar file
   shell: cd /opt/ && { curl -k -O https://"{{ virtual_ip }}"/ovirt-imageio.tar.gz ; cd -;}
@@ -31,16 +32,22 @@
 - name: do the encode
   shell: '{{ storage_nfs_export | b64encode }}'
   register: encoded_nfs_share
-  tags: daemon
+  tags: 
+    - daemon
+    - clean-daemon
 
 - set_fact:
     encoded_nfs_share: "{{ encoded_nfs_share.cmd }}"
-  tags: daemon
+  tags: 
+    - daemon
+    - clean-daemon
 
 - name: Creating mount path
   set_fact:
     mount_path: "{{ vault_data_directory }}/{{ encoded_nfs_share }}"
-  tags: daemon
+  tags: 
+    - daemon
+    - clean-daemon
 
 - name: Creating mount path directory if it does not exist
   file:
