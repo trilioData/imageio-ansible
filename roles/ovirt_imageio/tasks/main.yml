@@ -30,14 +30,14 @@
   tags: daemon
    
 - name: do the encode
-  shell: '{{ storage_nfs_export | b64encode }}'
+  shell: echo {{ storage_nfs_export | b64encode }}
   register: encoded_nfs_share
   tags: 
     - daemon
     - clean-daemon
 
 - set_fact:
-    encoded_nfs_share: "{{ encoded_nfs_share.cmd }}"
+    encoded_nfs_share: {{ encoded_nfs_share.stdout_lines }}
   tags: 
     - daemon
     - clean-daemon
