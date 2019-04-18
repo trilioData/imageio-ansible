@@ -37,7 +37,7 @@
     - clean-daemon
 
 - set_fact:
-    encoded_nfs_share: {{ encoded_nfs_share.stdout_lines }}
+    encoded_nfs_share: "{{ encoded_nfs_share.stdout }}"
   tags: 
     - daemon
     - clean-daemon
