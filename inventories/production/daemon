@@ -1,2 +1,2 @@
 [hosts]
-<host ip> ansible_user=<user_name> ansible_ssh_pass=<password>
+#<host ip> ansible_user=<user_name> ansible_ssh_pass=<password>
