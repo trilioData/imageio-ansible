@@ -49,15 +49,6 @@
     - daemon
     - clean-daemon
 
-- name: Creating mount path directory if it does not exist
-  file:
-    path: "{{ mount_path }}"
-    state: directory
-    owner: vdsm
-    group: kvm
-    recurse: yes
-  tags: daemon
-
 - name: Check mount point {{ mount_path }}
   command: mountpoint {{ mount_path }}
   register: mount_state
@@ -84,6 +75,15 @@
   when: mount_state.stdout == "{{ mount_path }} is a mountpoint"
   tags: daemon
 
+- name: Creating mount path directory if it does not exist
+  file:
+    path: "{{ mount_path }}"
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  tags: daemon
+  
 - name: Mount NFS volume
   command: mount -t nfs {{ storage_nfs_export }} {{ mount_path }}
   tags: daemon
