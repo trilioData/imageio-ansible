@@ -2,8 +2,10 @@ config_data = {
 	tvault : 
 	{
 		protocol: "{{ tvault_endpoint_protocol }}",
-        	ip: "{{ virtual_ip_fqdn }}",
-    			port: "8780",
+        websocket_protocol:"wss",
+		ip: "{{ virtual_ip_fqdn }}",
+    	port: "8780",
+		websocket_port:"8888",
 		project_id: "admin"
 	}
 }
