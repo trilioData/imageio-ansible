@@ -5,9 +5,9 @@ logrotate_scripts:
       log_dir: '/var/log/imageio_daemon/imageio-daemon*.log'
       log_extension: 'log'
       options:
-        - rotate 30
+        - rotate 20
         - daily
-        - size=25M
+        - maxsize 25M
         - missingok
         - compress
         - notifempty
@@ -17,9 +17,9 @@ logrotate_scripts:
       log_dir: '/var/log/imageio_proxy/imageio-proxy*.log'
       log_extension: 'log'
       options:
-        - rotate 30
+        - rotate 20
         - daily
-        - size=25M
+        - maxsize 25M
         - missingok
         - compress
         - notifempty
