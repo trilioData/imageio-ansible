@@ -1,0 +1,27 @@
+---
+logrotate_conf_dir: "/etc/logrotate.d/"
+logrotate_scripts:
+    - name: daemon_log
+      log_dir: '/var/log/imageio_daemon/imageio-daemon*.log'
+      log_extension: 'log'
+      options:
+        - rotate 20
+        - daily
+        - maxsize 25M
+        - missingok
+        - compress
+        - notifempty
+        - copytruncate
+
+    - name: proxy_log
+      log_dir: '/var/log/imageio_proxy/imageio-proxy*.log'
+      log_extension: 'log'
+      options:
+        - rotate 20
+        - daily
+        - maxsize 25M
+        - missingok
+        - compress
+        - notifempty
+        - copytruncate
+
