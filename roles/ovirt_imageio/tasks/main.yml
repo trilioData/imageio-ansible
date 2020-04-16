@@ -85,7 +85,7 @@
   tags: daemon
   
 - name: Mount NFS volume
-  command: mount -t nfs {{ storage_nfs_export }} {{ mount_path }}
+  command: mount -t nfs -o rw,nolock,soft,intr,timeo=180,vers=3 {{ storage_nfs_export }} {{ mount_path }}
   tags: daemon
 
 
@@ -116,7 +116,6 @@
     group: kvm
   tags: daemon
 
-
 - name: Remove directory struture created to test NFS validation
   file:
     path: "{{ mount_path }}/workload_{{ workload_id }}"
@@ -124,7 +123,6 @@
     owner: vdsm
     group: kvm
   tags: daemon
-
 
 - name: Test for vdsm entry in /etc/sudoers 
   shell: grep "^vdsm ALL = NOPASSWD" /etc/sudoers
@@ -148,7 +146,7 @@
 
 - name: Adding NFS mount entry in fstab
   lineinfile:
-    line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180 36 36"
+    line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180,vers=3 36 36"
     insertafter: EOF
     dest: /etc/fstab
   when: test_grep.stdout == ""
@@ -279,9 +277,6 @@
     recurse: yes
   tags: daemon
 
-
-
-
 - name: Check if Daemon was already configured.
   stat:
     path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
@@ -398,7 +393,7 @@
 
 - name: Remove NFS mount entry in fstab
   lineinfile:
-    line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180 36 36"
+    line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180,vers=3 36 36"
     state: absent
     dest: /etc/fstab
   tags: clean-daemon
