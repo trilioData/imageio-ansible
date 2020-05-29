@@ -559,10 +559,10 @@
   tags: proxy
 
 
-- name: main | updating rhvgui config file
-  action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources/config/data.js
-  tags:
-    - proxy
+# - name: main | updating rhvgui config file
+#   action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources/config/data.js
+#   tags:
+#     - proxy
 
 - name: main | updating rhvgui config file for new react app
   action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-resources/config.js
