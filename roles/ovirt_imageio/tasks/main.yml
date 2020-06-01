@@ -546,13 +546,13 @@
   delegate_to: 127.0.0.1
   tags: proxy
   
-- name: Get rhvgui tar file
-  shell: cd /usr/share/ovirt-engine/ui-plugins/ && { curl -k -O https://"{{ virtual_ip }}"/rhvgui.tgz ; cd -;}
+- name: Get rhvgui zip file
+  shell: cd /usr/share/ovirt-engine/ui-plugins/ && { curl -k -O https://"{{ virtual_ip }}"/rhvgui.zip ; cd -;}
   tags: proxy
 
-- name: Untar rhvgui tar file
+- name: Untar rhvgui zip file
   unarchive:
-    src: /usr/share/ovirt-engine/ui-plugins/rhvgui.tgz
+    src: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
     dest: /usr/share/ovirt-engine/ui-plugins
     copy: no
     extra_opts: [--strip-components=1]
@@ -565,7 +565,7 @@
 #      - proxy
 
 - name: main | updating rhvgui config file for new react app
-  action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-resources/config.js
+  action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources/config.js
   tags:
     - proxy
 
