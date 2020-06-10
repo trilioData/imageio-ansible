@@ -550,19 +550,19 @@
   shell: cd /usr/share/ovirt-engine/ui-plugins/ && { curl -k -O https://"{{ virtual_ip }}"/rhvgui.zip ; cd -;}
   tags: proxy
 
+- name: Install unzip
+  yum:
+    name: unzip
+    state: present
+  tags: proxy
+
 - name: Untar rhvgui zip file
   unarchive:
     src: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
     dest: /usr/share/ovirt-engine/ui-plugins
-    copy: no
-    extra_opts: [--strip-components=1]
+    remote_src: yes
   tags: proxy
-
-
-#  - name: main | updating rhvgui config file
-#    action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources/config/data.js
-#    tags:
-#      - proxy
+  
 
 - name: main | updating rhvgui config file for new react app
   action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources/config.js
@@ -578,8 +578,8 @@
     - daemon
     - proxy
 
-- name: Removing rhvgui tar file
+- name: Removing rhvgui zip file
   file:
     state: absent
-    path: /usr/share/ovirt-engine/ui-plugins/rhvgui.tar.gz
+    path: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
   tags: proxy
