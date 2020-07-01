@@ -1,0 +1,431 @@
+---
+
+- name: Read variables from triliovault-nodes file
+  include_vars: /etc/ansible/group_vars/triliovault-nodes
+  tags:
+    - clean-daemon
+
+- name: Get ovirt-imageio tar file
+  shell: cd /opt/ && { curl -k -O https://"{{ virtual_ip }}"/ovirt-imageio.tar.gz ; cd -;}
+  
+
+- name: Check if redis service is running
+  service:
+    name: redis
+    state: started
+  register: redis_status
+  
+
+- name: Adding a redis config entry to not to save redis data
+  command: redis-cli config set stop-writes-on-bgsave-error no
+  
+
+- name: Stopping playbook execution as redis in not installed
+  fail: msg="Please install redis" 
+  when: redis_status.state == "stopped"
+ 
+   
+- name: do the encode
+  shell: echo {{ storage_nfs_export | b64encode }}
+  register: encoded_nfs_share
+  tags: 
+    - daemon
+    - clean-daemon
+
+- set_fact:
+    encoded_nfs_share: "{{ encoded_nfs_share.stdout }}"
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Creating mount path
+  set_fact:
+    mount_path: "{{ vault_data_directory }}/{{ encoded_nfs_share }}"
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Check mount point {{ mount_path }}
+  command: mountpoint {{ mount_path }}
+  register: mount_state
+  failed_when: False
+  changed_when: False
+  
+
+- name: debug
+  when: mount_state.stdout == "{{ mount_path }} is a mountpoint"
+  debug:
+    msg: "{{ mount_path }} is a mountpoint"
+  
+
+- name: debug
+  when: mount_state.stdout == "{{ mount_path }} is not a mountpoint"
+  debug:
+    msg: "{{ mount_path }} is not a mountpoint"
+  
+
+- name: Unmounting existing mount path
+  mount: 
+    path: "{{ mount_path }}"
+    state: unmounted
+  when: mount_state.stdout == "{{ mount_path }} is a mountpoint"
+  
+
+- name: Creating mount path directory if it does not exist
+  file:
+    path: "{{ mount_path }}"
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  
+  
+- name: Mount NFS volume
+  command: mount -t nfs -o rw,nolock,soft,intr,timeo=180,vers=3 {{ storage_nfs_export }} {{ mount_path }}
+  
+
+
+- name: Generating workload using UUID
+  set_fact:
+    workload_id: "{{ 1000 | random | to_uuid | lower }}"
+    snapshot_id: "{{ 1000 | random | to_uuid | lower }}"
+    vm: "{{ 1000 | random | to_uuid | lower }}"
+    vm_resource: "{{ 1000 | random | to_uuid | lower }}"
+  
+
+
+- name: Checking NFS read/write permissions for VDSM user
+  file:
+    path: "{{ mount_path }}/workload_{{ workload_id }}/snapshot_{{ snapshot_id}}/vm_{{ vm }}/vm_resource_{{ vm_resource }}"
+    state: file
+    owner: vdsm
+    group: kvm
+    state: directory
+  
+
+
+- name: Creating test file to check permissions for VDSM user
+  file: 
+    path: "{{ mount_path }}/workload_{{ workload_id }}/snapshot_{{ snapshot_id}}/vm_{{ vm }}/vm_resource_{{ vm_resource }}/test"
+    state: touch
+    owner: vdsm
+    group: kvm
+  
+
+- name: Remove directory struture created to test NFS validation
+  file:
+    path: "{{ mount_path }}/workload_{{ workload_id }}"
+    state: absent
+    owner: vdsm
+    group: kvm
+ 
+
+- name: Test for vdsm entry in /etc/sudoers 
+  shell: grep "^vdsm ALL = NOPASSWD" /etc/sudoers
+  register: test_sudoers
+  ignore_errors: yes
+ 
+
+- name: Adding vdsm entry in /etc/sudoers
+  lineinfile:
+    line: "vdsm ALL = NOPASSWD: ALL"
+    insertafter: EOF
+    dest: /etc/sudoers
+  when: test_sudoers.stdout == ""
+  
+  
+- name: Test for NFS mount entry in fstab 
+  shell: grep "^{{ storage_nfs_export }} {{ mount_path }}" /etc/fstab
+  register: test_grep
+  ignore_errors: yes
+ 
+
+- name: Adding NFS mount entry in fstab
+  lineinfile:
+    line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180,vers=3 36 36"
+    insertafter: EOF
+    dest: /etc/fstab
+  when: test_grep.stdout == ""
+ 
+
+- name: Append empty line to daemon config file
+  lineinfile:
+    line: ''
+    insertafter: EOF
+    dest: /etc/ovirt-imageio-daemon/daemon.conf
+  with_items:
+  - "\n"
+  
+
+- name: Append encoded nfs share to file
+  lineinfile:
+    line: "[nfs_config]"
+    insertafter: EOF
+    dest: /etc/ovirt-imageio-daemon/daemon.conf
+  
+
+- name: Append encoded nfs share to file
+  lineinfile:
+    line: "nfs_share = {{ storage_nfs_export }}"
+    insertafter: EOF
+    dest: /etc/ovirt-imageio-daemon/daemon.conf
+  
+
+- name: Append mount path to file
+  lineinfile:
+    line: "mount_path = {{ mount_path }}"
+    insertafter: EOF
+    dest: /etc/ovirt-imageio-daemon/daemon.conf
+  
+
+- name: Stop the existing ovirt-imageio-daemon service
+  service:
+    name: ovirt-imageio-daemon
+    state: stopped
+  ignore_errors: yes
+  register: ovirt_imageio_daemon
+  tags: 
+    - clean-daemon
+
+- name: Stop Celery worker daemon if already running
+  service:
+    name: ovirt_celery
+    state: stopped
+  ignore_errors: yes
+  tags: 
+    - clean-daemon
+
+- debug:
+    msg: "ovirt-imageio-daemon is stopped"
+  ignore_errors: yes
+  when: ovirt_imageio_daemon.state == "stopped"
+  
+
+- name: Add controller key to authorized_keys
+  authorized_key:
+    user: root
+    state: present
+    key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+  
+
+- name: Remove imageio if already present
+  file:
+    path: /opt/ovirt-imageio
+    state: absent
+  tags: 
+    - clean-daemon
+
+- name: Untar ovirt-imageio tar file
+  unarchive:
+    src: /opt/ovirt-imageio.tar.gz
+    dest: /opt
+    copy: no
+  
+
+- name: Change directory permissions
+  file:
+    path: /opt/ovirt-imageio
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  
+
+
+- name: Create directory to record daemon logs
+  file:
+    path: /var/log/imageio_daemon
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+ 
+   
+- name : create directory to record imageio-proxy logs
+  file:
+    path: /var/log/imageio_proxy
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+ 
+
+
+- name: Setup logrotate.d scripts
+  template:
+    src: logrotate.d.j2
+    dest: "{{ logrotate_conf_dir }}{{ item.name }}"
+  with_items: "{{ logrotate_scripts }}"
+  when: logrotate_scripts is defined
+  
+
+- name: Create directory to record logs
+  file:
+    path: /var/log/ovirt_celery
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  
+
+- name: Create directory for ovirt-datamover
+  file:
+    path: /home/rhv/myansible/ovirt-datamover
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+
+- name: Create another directory for new servcie datamover
+  file:
+    path: /etc/ovirt-datamover
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+
+- name: copy files to ovirt-datamover
+  copy:
+    src: /opt/ovirt-imageio/daemon
+    dest: /home/rhv/myansible/ovirt-datamover
+    remote_src: yes
+    directory_mode: yes
+
+
+- name: add conf file with the path of nfs file
+  
+
+    
+
+    
+
+- name: Check if Daemon was already configured.
+  stat:
+    path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
+  register: stat_result
+  tags: 
+    - clean-daemon
+
+- name: Check if Daemon was already configured.
+  stat:
+    path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
+  register: stat_result
+  
+
+- name: Rename existing ovirt-imageio service file to original before replacing
+  copy:
+    src: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    dest: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
+    remote_src: yes
+  become: true
+  when: stat_result.stat.exists == False
+ 
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    state: absent
+  
+
+# Added task to fix if user runs uninstallation for more that 1 time
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags:
+    - clean-daemon
+
+- name: Replace file with original contents
+  copy:
+    src: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
+    dest: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    remote_src: yes
+  become: true
+  when: stat_result.stat.exists == True
+  tags: clean-daemon
+
+- name: Remove original service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags: clean-daemon
+
+- name: Copy the ImageIO Daemon service file
+  copy:
+    src: /opt/ovirt-imageio/service-files/ovirt-imageio-daemon.service
+    dest: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    remote_src: yes
+    mode: u=rw,g=r,o=r
+  
+
+- name: Activate the celery virtualenv
+  shell: source /opt/ovirt-imageio/bin/activate
+  
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt_celery.service
+    state: absent
+  tags: 
+    - clean-daemon
+
+- name: Copy the celery service file
+  copy:
+    src: /opt/ovirt-imageio/service-files/ovirt_celery.service
+    dest: /usr/lib/systemd/system/ovirt_celery.service
+    remote_src: yes
+    owner: vdsm
+    group: kvm
+    mode: u=rw,g=r,o=r
+
+- name: Systemctl daemon reload
+  command: systemctl daemon-reload
+  tags: 
+    - clean-daemon
+
+- name: Start ImageIO Daemon Service
+  service:
+    name: ovirt-imageio-daemon
+    enabled: yes
+    state: started
+  tags: 
+    - clean-daemon
+  
+- name: Start Celery worker service
+  command: systemctl start ovirt_celery
+  
+
+- name: Enable Celery worker service
+  command: systemctl enable ovirt_celery
+  
+
+- name: Unmounting existing mount path
+  mount: 
+    path: "{{ mount_path }}"
+    state: unmounted
+  tags: clean-daemon
+
+- name: Remove NFS mount entry in fstab
+  lineinfile:
+    line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180,vers=3 36 36"
+    state: absent
+    dest: /etc/fstab
+  tags: clean-daemon
+  
+# Proxy service deployment
+
+
+
+- name: Removing ovirt-imageio tar file
+  file:
+    state: absent
+    path: /opt/ovirt-imageio.tar.gz
+  
+
+- name: reload enable
+  command: firewall-cmd --zone=public --add-port=5000/tcp --permanent
+
+- name: reload firewall
+  command: firewall-cmd --reload

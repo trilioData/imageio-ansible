@@ -1,0 +1,213 @@
+---
+
+- name: Read variables from triliovault-nodes file
+  include_vars: /etc/ansible/group_vars/triliovault-nodes
+  
+
+- name: Get ovirt-imageio tar file
+  shell: cd /opt/ && { curl -k -O https://"{{ virtual_ip }}"/ovirt-imageio.tar.gz ; cd -;}
+  
+
+
+   
+- name : create directory to record imageio-proxy logs
+  file:
+    path: /var/log/imageio_proxy
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  
+
+
+- name: Setup logrotate.d scripts
+  template:
+    src: logrotate.d.j2
+    dest: "{{ logrotate_conf_dir }}{{ item.name }}"
+  with_items: "{{ logrotate_scripts }}"
+  when: logrotate_scripts is defined
+  
+
+
+  
+# Proxy service deployment
+
+- name: Stop the existing ImageIO Proxy service
+  service:
+    name: ovirt-imageio-proxy
+    state: stopped
+  ignore_errors: yes
+  register: ovirt-imageio-proxy
+  tags:
+    - clean-proxy 
+  
+- name: Add controller key to authorized_keys
+  authorized_key:
+    user: root
+    state: present
+    key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+  
+
+- name: Remove imageio if already present
+  file:
+    path: /opt/ovirt-imageio/
+    state: absent
+  tags:
+    - clean-proxy
+  
+
+- name: Untar ovirt-imageio tar file
+  unarchive:
+    src: /opt/ovirt-imageio.tar.gz
+    dest: /opt
+    copy: no
+  
+
+- name: Check if Proxy was already configured.
+  stat:
+    path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
+  register: stat_result
+  tags:
+    - clean-proxy
+
+- name: Check if Proxy was already configured.
+  stat:
+    path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
+  register: stat_result
+  
+
+- name: Rename existing ovirt-imageio-proxy service file to original before replacing
+  copy:
+    src: /usr/lib/systemd/system/ovirt-imageio-proxy.service
+    dest: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
+    remote_src: yes
+  become: true
+  when: stat_result.stat.exists == False
+ 
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-imageio-proxy.service
+    state: absent
+  
+
+# Added task to fix if user runs uninstallation for more that 1 time
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-imageio-proxy.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags:
+    - clean-proxy
+
+- name: Replace file with original contents
+  copy:
+    src: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
+    dest: /usr/lib/systemd/system/ovirt-imageio-proxy.service
+    remote_src: yes
+  become: true
+  when: stat_result.stat.exists == True
+  tags:
+    - clean-proxy
+ 
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags:
+    - clean-proxy
+  
+
+- name: Copy the service file
+  copy:
+    src: /opt/ovirt-imageio/service-files/ovirt-imageio-proxy.service
+    dest: /usr/lib/systemd/system/ovirt-imageio-proxy.service
+    remote_src: yes
+    mode: u=rw,g=r,o=r
+  
+
+- name: Activate the virtualenv
+  shell: source /opt/ovirt-imageio/bin/activate
+  
+
+- name: Systemctl daemon reload
+  command: systemctl daemon-reload
+  tags:
+    - clean-proxy
+  
+
+- name: Start ImageIO Proxy Service
+  service:
+    name: ovirt-imageio-proxy
+    enabled: yes
+    state: started
+  tags:
+    - clean-proxy
+
+- name: Getting fqdn of host
+  shell: python -c "import socket; print socket.gethostname()"
+  register: fqdn
+  
+
+- name: Get IP from ovirt engine url
+  shell: echo "{{ rhv_engine_url }}" | sed 's/https:\/\///'
+  register: engine
+  
+
+- name: Removing trailing slash from engine url
+  shell: echo "{{ engine.stdout }}" | sed -e 's#/$##'
+  register: engine
+  
+
+- name: Removing existing host entry from /etc/hosts before adding new
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ engine.stdout }}'
+    state: absent
+  
+  
+- name: Adding fqdn value to /etc/hosts of TVM
+  lineinfile:
+    path: /etc/hosts
+    regexp: '(^\s+{{ engine.stdout }}([\w=/\-\.\,\_]+)*)\s*$'
+    line: "{{ engine.stdout }} {{ fqdn.stdout }}"
+  delegate_to: 127.0.0.1
+  
+  
+- name: Get rhvgui zip file
+  shell: cd /usr/share/ovirt-engine/ui-plugins/ && { curl -k -O https://"{{ virtual_ip }}"/rhvgui-resources ; cd -;}
+  
+
+# - name: Install unzip
+#   yum:
+#     name: unzip
+#     state: present
+#   tags: proxy
+
+# - name: Untar rhvgui zip file
+#   unarchive:
+#     src: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
+#     dest: /usr/share/ovirt-engine/ui-plugins
+#     remote_src: yes
+#   tags: proxy
+  
+
+- name: main | updating rhvgui config file for new react app
+  action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources/config.js
+  
+
+
+- name: Removing ovirt-imageio tar file
+  file:
+    state: absent
+    path: /opt/ovirt-imageio.tar.gz
+  
+
+# - name: Removing rhvgui zip file
+#   file:
+#     state: absent
+#     path: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
+#   tags: proxy
