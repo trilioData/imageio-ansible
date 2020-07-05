@@ -1,0 +1,552 @@
+---
+# tasks file for test
+- name: Read variables from triliovault-nodes file
+  include_vars: /etc/ansible/group_vars/triliovault-nodes
+  tags:
+    - daemon
+    - proxy
+    - clean-daemon
+
+- name: Fetch certs from manager
+  fetch:
+    src: /etc/pki/ovirt-engine/ca.pem
+    dest: /opt/stack/
+    mode: 0774
+    flat: yes
+  tags: proxy
+
+
+
+
+- name: Get ovirt-imageio tar file
+  shell: cd /opt/ && { curl -k -O https://"{{ virtual_ip }}"/ovirt-imageio.tar.gz ; cd -;}
+  tags:
+    - daemon
+    - proxy
+
+- name: Check if redis service is running
+  service:
+    name: redis
+    state: started
+  register: redis_status
+  tags: daemon
+
+- name: Adding a redis config entry to not to save redis data
+  command: redis-cli config set stop-writes-on-bgsave-error no
+  tags: daemon
+
+- name: Stopping playbook execution as redis in not installed
+  fail: msg="Please install redis" 
+  when: redis_status.state == "stopped"
+  tags: daemon
+   
+- name: do the encode
+  shell: echo {{ storage_nfs_export | b64encode }}
+  register: encoded_nfs_share
+  tags: 
+    - daemon
+    - clean-daemon
+
+- set_fact:
+    encoded_nfs_share: "{{ encoded_nfs_share.stdout }}"
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Creating mount path
+  set_fact:
+    mount_path: "{{ vault_data_directory }}/{{ encoded_nfs_share }}"
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Check mount point {{ mount_path }}
+  command: mountpoint {{ mount_path }}
+  register: mount_state
+  failed_when: False
+  changed_when: False
+  tags: daemon
+
+- name: debug
+  when: mount_state.stdout == "{{ mount_path }} is a mountpoint"
+  debug:
+    msg: "{{ mount_path }} is a mountpoint"
+  tags: daemon
+
+- name: debug
+  when: mount_state.stdout == "{{ mount_path }} is not a mountpoint"
+  debug:
+    msg: "{{ mount_path }} is not a mountpoint"
+  tags: daemon
+
+- name: Unmounting existing mount path
+  mount: 
+    path: "{{ mount_path }}"
+    state: unmounted
+  when: mount_state.stdout == "{{ mount_path }} is a mountpoint"
+  tags: daemon
+
+- name: Creating mount path directory if it does not exist
+  file:
+    path: "{{ mount_path }}"
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  tags: daemon
+  
+- name: Mount NFS volume
+  command: mount -t nfs -o rw,nolock,soft,intr,timeo=180,vers=3 {{ storage_nfs_export }} {{ mount_path }}
+  tags: daemon
+
+
+- name: Generating workload using UUID
+  set_fact:
+    workload_id: "{{ 1000 | random | to_uuid | lower }}"
+    snapshot_id: "{{ 1000 | random | to_uuid | lower }}"
+    vm: "{{ 1000 | random | to_uuid | lower }}"
+    vm_resource: "{{ 1000 | random | to_uuid | lower }}"
+  tags: daemon
+
+
+- name: Checking NFS read/write permissions for VDSM user
+  file:
+    path: "{{ mount_path }}/workload_{{ workload_id }}/snapshot_{{ snapshot_id}}/vm_{{ vm }}/vm_resource_{{ vm_resource }}"
+    state: file
+    owner: vdsm
+    group: kvm
+    state: directory
+  tags: daemon
+
+
+- name: Creating test file to check permissions for VDSM user
+  file: 
+    path: "{{ mount_path }}/workload_{{ workload_id }}/snapshot_{{ snapshot_id}}/vm_{{ vm }}/vm_resource_{{ vm_resource }}/test"
+    state: touch
+    owner: vdsm
+    group: kvm
+  tags: daemon
+
+- name: Remove directory struture created to test NFS validation
+  file:
+    path: "{{ mount_path }}/workload_{{ workload_id }}"
+    state: absent
+    owner: vdsm
+    group: kvm
+  tags: daemon
+
+- name: Test for vdsm entry in /etc/sudoers 
+  shell: grep "^vdsm ALL = NOPASSWD" /etc/sudoers
+  register: test_sudoers
+  ignore_errors: yes
+  tags: daemon
+
+- name: Adding vdsm entry in /etc/sudoers
+  lineinfile:
+    line: "vdsm ALL = NOPASSWD: ALL"
+    insertafter: EOF
+    dest: /etc/sudoers
+  when: test_sudoers.stdout == ""
+  tags: daemon
+  
+- name: Test for NFS mount entry in fstab 
+  shell: grep "^{{ storage_nfs_export }} {{ mount_path }}" /etc/fstab
+  register: test_grep
+  ignore_errors: yes
+  tags: daemon
+
+- name: Adding NFS mount entry in fstab
+  lineinfile:
+    line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180,vers=3 36 36"
+    insertafter: EOF
+    dest: /etc/fstab
+  when: test_grep.stdout == ""
+  tags: daemon
+
+- name: Check if ovirt-datamover directory exists
+  stat:
+    path: /etc/ovirt-datamover
+  register: my_folder
+  tags: daemon
+ 
+- name: echo if directory already existed
+  debug:
+    msg: "the ovirt-datamover directory is already existed"
+  when: my_folder.stat.exists
+  tags: daemon
+ 
+- name: Create ovirt-datamover directory if not exists
+  file:
+    path: /etc/ovirt-datamover
+    state: directory
+    mode: 0755
+    group: root
+    owner: root
+  when: my_folder.stat.exists == false
+  tags: daemon
+
+- name: Check if datamover.conf exists
+  stat: path=/etc/ovirt-datamover/datamover.conf
+  register: status
+  tags: daemon
+
+- debug: var=status
+  tags: daemon
+
+- name: Touch datamover.conf file if does not exist
+  file:
+    state: touch
+    path: /etc/ovirt-datamover/datamover.conf
+    owner: root
+    group: root
+    mode: 0755
+  when: status.stat.exists == false
+  tags: daemon
+
+- name: Append empty line to datamover config file
+  lineinfile:
+    line: ''
+    insertafter: EOF
+    dest: /etc/ovirt-datamover/datamover.conf
+  with_items:
+  - "\n"
+  tags: daemon
+
+- name: Append encoded nfs share to datamover conf file
+  lineinfile:
+    line: "[nfs_config]"
+    insertafter: EOF
+    dest: /etc/ovirt-datamover/datamover.conf
+  tags: daemon
+
+- name: Append encoded nfs share to file
+  lineinfile:
+    line: "nfs_share = {{ storage_nfs_export }}"
+    insertafter: EOF
+    dest: /etc/ovirt-datamover/datamover.conf
+  tags: daemon
+
+- name: Append mount path to file
+  lineinfile:
+    line: "mount_path = {{ mount_path }}"
+    insertafter: EOF
+    dest: /etc/ovirt-datamover/datamover.conf
+  tags: daemon
+
+
+- name: copy certs to host
+  copy:
+    src: /opt/stack/ca.pem
+    dest: /etc/ovirt-datamover
+  tags: daemon
+
+
+- name: Stop the existing ovirt-datamover service
+  service:
+    name: ovirt-datamover
+    state: stopped
+  ignore_errors: yes
+  register: ovirt_datamover
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Stop Celery worker daemon if already running
+  service:
+    name: ovirt_celery
+    state: stopped
+  ignore_errors: yes
+  tags: 
+    - daemon
+    - clean-daemon
+
+- debug:
+    msg: "ovirt-datamover is stopped"
+  ignore_errors: yes
+  when: ovirt_datamover.state == "stopped"
+  tags: daemon
+
+- name: Add controller key to authorized_keys
+  authorized_key:
+    user: root
+    state: present
+    key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+  tags: daemon
+
+- name: Remove imageio if already present
+  file:
+    path: /opt/ovirt-imageio
+    state: absent
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Untar ovirt-imageio tar file
+  unarchive:
+    src: /opt/ovirt-imageio.tar.gz
+    dest: /opt
+    copy: no
+  tags: daemon
+
+
+- name: Create directory to record daemon logs
+  file:
+    path: /var/log/imageio_daemon
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  tags: daemon
+
+- name: Check if Daemon was already configured.
+  stat:
+    path: /usr/lib/systemd/system/ovirt-datamover-original.service
+  register: stat_result
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Check if Daemon was already configured.
+  stat:
+    path: /usr/lib/systemd/system/ovirt-datamover-original.service
+  register: stat_result
+  tags: daemon
+
+- name: Rename existing ovirt-datamover service file to original before replacing
+  copy:
+    src: /usr/lib/systemd/system/ovirt-datamover.service
+    dest: /usr/lib/systemd/system/ovirt-datamover-original.service
+    remote_src: yes
+  become: true
+  when: stat_result.stat.exists == False
+  tags: daemon
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-datamover.service
+    state: absent
+  tags: 
+    - daemon
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-datamover.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags:
+    - clean-daemon
+
+- name: Replace file with original contents
+  copy:
+    src: /usr/lib/systemd/system/ovirt-datamover-original.service
+    dest: /usr/lib/systemd/system/ovirt-datamover.service
+    remote_src: yes
+  become: true
+  when: stat_result.stat.exists == True
+  tags: clean-daemon
+
+- name: Remove original service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-datamover-original.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags: clean-daemon
+
+- name: Copy the ImageIO Daemon service file
+  copy:
+    src: /opt/ovirt-imageio/service-files/ovirt-datamover.service
+    dest: /usr/lib/systemd/system/ovirt-datamover.service
+    remote_src: yes
+    mode: u=rw,g=r,o=r
+  tags: daemon
+
+- name: Activate the celery virtualenv
+  shell: source /opt/ovirt-imageio/bin/activate
+  tags: daemon
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt_celery.service
+    state: absent
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Copy the celery service file
+  copy:
+    src: /opt/ovirt-imageio/service-files/ovirt_celery.service
+    dest: /usr/lib/systemd/system/ovirt_celery.service
+    remote_src: yes
+    owner: vdsm
+    group: kvm
+    mode: u=rw,g=r,o=r
+  tags: daemon
+
+- name: Systemctl daemon reload
+  command: systemctl daemon-reload
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Start ImageIO Daemon Service
+  service:
+    name: ovirt-datamover
+    enabled: yes
+    state: started
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Start Celery worker service
+  command: systemctl start ovirt_celery
+  tags: daemon
+
+- name: Enable Celery worker service
+  command: systemctl enable ovirt_celery
+  tags: daemon
+
+- name: Unmounting existing mount path
+  mount: 
+    path: "{{ mount_path }}"
+    state: unmounted
+  tags: clean-daemon
+
+- name: Remove NFS mount entry in fstab
+  lineinfile:
+    line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180,vers=3 36 36"
+    state: absent
+    dest: /etc/fstab
+  tags: clean-daemon
+
+# proxy deployment
+
+- name: Add controller key to authorized_keys
+  authorized_key:
+    user: root
+    state: present
+    key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+  tags: proxy
+
+- name: Remove imageio if already present
+  file:
+    path: /opt/ovirt-imageio/
+    state: absent
+  tags: 
+    - proxy
+    - clean-proxy
+
+- name: Untar ovirt-imageio tar file
+  unarchive:
+    src: /opt/ovirt-imageio.tar.gz
+    dest: /opt
+    copy: no
+  tags: proxy
+
+
+
+- name: Getting fqdn of host
+  shell: python -c "import socket; print socket.gethostname()"
+  register: fqdn
+  tags: proxy
+
+- name: Get IP from ovirt engine url
+  shell: echo "{{ rhv_engine_url }}" | sed 's/https:\/\///'
+  register: engine
+  tags: proxy
+
+- name: Removing trailing slash from engine url
+  shell: echo "{{ engine.stdout }}" | sed -e 's#/$##'
+  register: engine
+  tags: proxy
+
+- name: Removing existing host entry from /etc/hosts before adding new
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ engine.stdout }}'
+    state: absent
+  tags: proxy
+  
+- name: Adding fqdn value to /etc/hosts of TVM
+  lineinfile:
+    path: /etc/hosts
+    regexp: '(^\s+{{ engine.stdout }}([\w=/\-\.\,\_]+)*)\s*$'
+    line: "{{ engine.stdout }} {{ fqdn.stdout }}"
+  delegate_to: 127.0.0.1
+  tags: proxy
+  
+
+
+# - name: Install unzip
+#   yum:
+#     name: unzip
+#     state: present
+#   tags: proxy
+
+# - name: Untar rhvgui zip file
+#   unarchive:
+#     src: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
+#     dest: /usr/share/ovirt-engine/ui-plugins
+#     remote_src: yes
+#   tags: proxy
+
+
+# - name: Remove trilio-plugin-resources directory
+#   file:
+#     path: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
+#     state: absent
+#   tags: proxy
+
+
+# - name: Remove trilio-plugin.json
+#   file:
+#     path: /usr/share/ovirt-engine/ui-plugins/trilio-plugin.json
+#     state: absent
+#   tags: proxy
+
+
+- name: create directory trilio-plugin-resources
+  file:
+    path: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
+    state: directory
+  tags: proxy
+
+
+
+- name: copy trilio-plugin-resources
+  copy:
+    src: /opt/stack/rhvgui-resources/trilio-plugin-resources/
+    dest: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
+    directory_mode: yes
+  tags: proxy
+
+
+- name: copy json file
+  copy:
+    src: /opt/stack/rhvgui-resources/trilio-plugin.json
+    dest: /usr/share/ovirt-engine/ui-plugins/
+  tags: proxy
+
+- name: main | updating rhvgui config file for new react app
+  action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources/config.js
+  tags:
+    - proxy
+
+
+- name: Removing ovirt-imageio tar file
+  file:
+    state: absent
+    path: /opt/ovirt-imageio.tar.gz
+  tags:
+    - daemon
+    - proxy
+
+# - name: Removing rhvgui zip file
+#   file:
+#     state: absent
+#     path: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
+#   tags: proxy
+
+
+
+
+  

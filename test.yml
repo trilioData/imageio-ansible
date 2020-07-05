@@ -1,0 +1,6 @@
+---
+
+#For all servers execute the follow roles
+- hosts: hosts
+  roles:
+    - ovirt_new
