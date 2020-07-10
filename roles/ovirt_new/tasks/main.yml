@@ -7,22 +7,11 @@
     - proxy
     - clean-daemon
 
-- name: Fetch certs from manager
-  fetch:
-    src: /etc/pki/ovirt-engine/ca.pem
-    dest: /opt/stack/
-    mode: 0774
-    flat: yes
-  tags: proxy
-
-
-
 
 - name: Get ovirt-imageio tar file
   shell: cd /opt/ && { curl -k -O https://"{{ virtual_ip }}"/ovirt-imageio.tar.gz ; cd -;}
   tags:
     - daemon
-    - proxy
 
 - name: Check if redis service is running
   service:
@@ -33,6 +22,10 @@
 
 - name: Adding a redis config entry to not to save redis data
   command: redis-cli config set stop-writes-on-bgsave-error no
+  tags: daemon
+
+- name: Activate 5000 port in firewall
+  shell: firewall-cmd --zone=public --add-port=5000/tcp
   tags: daemon
 
 - name: Stopping playbook execution as redis in not installed
@@ -180,8 +173,8 @@
     path: /etc/ovirt-datamover
     state: directory
     mode: 0755
-    group: root
-    owner: root
+    group: kvm
+    owner: vdsm
   when: my_folder.stat.exists == false
   tags: daemon
 
@@ -197,8 +190,8 @@
   file:
     state: touch
     path: /etc/ovirt-datamover/datamover.conf
-    owner: root
-    group: root
+    owner: vdsm
+    group: kvm
     mode: 0755
   when: status.stat.exists == false
   tags: daemon
@@ -231,13 +224,6 @@
     line: "mount_path = {{ mount_path }}"
     insertafter: EOF
     dest: /etc/ovirt-datamover/datamover.conf
-  tags: daemon
-
-
-- name: copy certs to host
-  copy:
-    src: /opt/stack/ca.pem
-    dest: /etc/ovirt-datamover
   tags: daemon
 
 
@@ -305,6 +291,7 @@
   tags: 
     - daemon
     - clean-daemon
+  
 
 - name: Check if Daemon was already configured.
   stat:
@@ -336,23 +323,7 @@
   tags:
     - clean-daemon
 
-- name: Replace file with original contents
-  copy:
-    src: /usr/lib/systemd/system/ovirt-datamover-original.service
-    dest: /usr/lib/systemd/system/ovirt-datamover.service
-    remote_src: yes
-  become: true
-  when: stat_result.stat.exists == True
-  tags: clean-daemon
-
-- name: Remove original service file if already present
-  file:
-    path: /usr/lib/systemd/system/ovirt-datamover-original.service
-    state: absent
-  when: stat_result.stat.exists == True
-  tags: clean-daemon
-
-- name: Copy the ImageIO Daemon service file
+- name: Copy the datamover service file
   copy:
     src: /opt/ovirt-imageio/service-files/ovirt-datamover.service
     dest: /usr/lib/systemd/system/ovirt-datamover.service
@@ -418,6 +389,44 @@
     dest: /etc/fstab
   tags: clean-daemon
 
+# Adding host entry in /etc/host of TVM
+
+- name: register target ip
+  set_fact:
+    target_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
+  register: target_ip
+  tags: daemon
+
+
+- debug:
+    var: target_ip
+  tags: daemon
+
+- name: Getting fqdn of host
+  shell: python -c "import socket; print socket.gethostname()"
+  register: fqdn
+  tags: daemon
+
+- name: Removing existing host entry from /etc/hosts before adding new
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ target_ip }}'
+    state: absent
+  tags: daemon
+
+
+- name: Adding fqdn value to /etc/hosts of TVM
+  lineinfile:
+    path: /etc/hosts
+    regexp: '(^\s+{{ target_ip }}([\w=/\-\.\,\_]+)*)\s*$'
+    line: "{{ target_ip }} {{ fqdn.stdout }}"
+  delegate_to: 127.0.0.1
+  tags: daemon
+
+
+  
+
+
 # proxy deployment
 
 - name: Add controller key to authorized_keys
@@ -441,67 +450,6 @@
     dest: /opt
     copy: no
   tags: proxy
-
-
-
-- name: Getting fqdn of host
-  shell: python -c "import socket; print socket.gethostname()"
-  register: fqdn
-  tags: proxy
-
-- name: Get IP from ovirt engine url
-  shell: echo "{{ rhv_engine_url }}" | sed 's/https:\/\///'
-  register: engine
-  tags: proxy
-
-- name: Removing trailing slash from engine url
-  shell: echo "{{ engine.stdout }}" | sed -e 's#/$##'
-  register: engine
-  tags: proxy
-
-- name: Removing existing host entry from /etc/hosts before adding new
-  lineinfile:
-    dest: /etc/hosts
-    regexp: '^{{ engine.stdout }}'
-    state: absent
-  tags: proxy
-  
-- name: Adding fqdn value to /etc/hosts of TVM
-  lineinfile:
-    path: /etc/hosts
-    regexp: '(^\s+{{ engine.stdout }}([\w=/\-\.\,\_]+)*)\s*$'
-    line: "{{ engine.stdout }} {{ fqdn.stdout }}"
-  delegate_to: 127.0.0.1
-  tags: proxy
-  
-
-
-# - name: Install unzip
-#   yum:
-#     name: unzip
-#     state: present
-#   tags: proxy
-
-# - name: Untar rhvgui zip file
-#   unarchive:
-#     src: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
-#     dest: /usr/share/ovirt-engine/ui-plugins
-#     remote_src: yes
-#   tags: proxy
-
-
-# - name: Remove trilio-plugin-resources directory
-#   file:
-#     path: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
-#     state: absent
-#   tags: proxy
-
-
-# - name: Remove trilio-plugin.json
-#   file:
-#     path: /usr/share/ovirt-engine/ui-plugins/trilio-plugin.json
-#     state: absent
-#   tags: proxy
 
 
 - name: create directory trilio-plugin-resources
@@ -540,11 +488,7 @@
     - daemon
     - proxy
 
-# - name: Removing rhvgui zip file
-#   file:
-#     state: absent
-#     path: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
-#   tags: proxy
+
 
 
 
