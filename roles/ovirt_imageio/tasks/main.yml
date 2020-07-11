@@ -7,11 +7,97 @@
     - proxy
     - clean-daemon
 
-- name: Get ovirt-imageio tar file
-  shell: cd /opt/ && { curl -k -O https://"{{ virtual_ip }}"/ovirt-imageio.tar.gz ; cd -;}
+
+- name: Remove imageio if already present
+  file:
+    path: /opt/ovirt-imageio
+    state: absent
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: Remove imageio if already present
+  file:
+    path: /opt/ovirt-imageio
+    state: absent
+  tags: 
+    - proxy
+    - clean-proxy
+
+
+- name: check daemon version
+  command: yum info ovirt-imageio-daemon
+  register: daemon_version
+  tags: daemon
+ 
+
+- name: Get rpm for ovirt-1.5
+  shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.0-0.x86_64.rpm
+  args:
+    chdir: /opt
+  when: daemon_version.stdout | regex_search('1.5.3')
+  tags: 
+    - daemon
+
+- name: check proxy version
+  command: yum info ovirt-imageio-proxy
+  register: proxy_version
+  tags: proxy
+ 
+
+- name: Get rpm for ovirt-1.5
+  shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.0-0.x86_64.rpm
+  args:
+    chdir: /opt
+  when: proxy_version.stdout | regex_search('1.5.3')
+  tags:
+    - proxy
+
+
+
+- name: Get rpm for ovirt-1.6
+  shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.6-0.x86_64.rpm
+  args:
+    chdir: /opt
+  when: daemon_version.stdout | regex_search('2.0.3')
   tags:
     - daemon
+
+- name: extract rpm on daemon
+  shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
+  args:
+    chdir: /opt
+  when: daemon_version.stdout | regex_search('1.5.3')
+  tags: 
+    - daemon
+
+- name: extract rpm for ovirt-1.5
+  shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
+  args:
+    chdir: /opt
+  when: proxy_version.stdout | regex_search('1.5.3')
+  tags: 
     - proxy
+
+  
+
+- name: extract rpm 1.6
+  shell: rpm2cpio ovirt-imageio-1.6-0.x86_64.rpm | cpio -idmv
+  args:
+    chdir: /opt
+  when: daemon_version.stdout | regex_search('2.0.3')
+  tags:
+    - daemon
+
+- name: Change directory permissions
+  file:
+    path: /opt/ovirt-imageio
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  tags: daemon
+
 
 - name: Check if redis service is running
   service:
@@ -214,30 +300,6 @@
     key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
   tags: daemon
 
-- name: Remove imageio if already present
-  file:
-    path: /opt/ovirt-imageio
-    state: absent
-  tags: 
-    - daemon
-    - clean-daemon
-
-- name: Untar ovirt-imageio tar file
-  unarchive:
-    src: /opt/ovirt-imageio.tar.gz
-    dest: /opt
-    copy: no
-  tags: daemon
-
-- name: Change directory permissions
-  file:
-    path: /opt/ovirt-imageio
-    state: directory
-    owner: vdsm
-    group: kvm
-    recurse: yes
-  tags: daemon
-
 
 - name: Create directory to record daemon logs
   file:
@@ -397,6 +459,14 @@
     state: absent
     dest: /etc/fstab
   tags: clean-daemon
+
+- name: Remove ovirt rpm
+  file:
+    path: /opt/ovirt-imageio-1.0-0.x86_64.rpm
+    state: absent
+  tags: 
+    - daemon
+    - proxy
   
 # Proxy service deployment
 
@@ -417,20 +487,7 @@
     key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
   tags: proxy
 
-- name: Remove imageio if already present
-  file:
-    path: /opt/ovirt-imageio/
-    state: absent
-  tags: 
-    - proxy
-    - clean-proxy
 
-- name: Untar ovirt-imageio tar file
-  unarchive:
-    src: /opt/ovirt-imageio.tar.gz
-    dest: /opt
-    copy: no
-  tags: proxy
 
 - name: Check if Proxy was already configured.
   stat:
@@ -546,23 +603,29 @@
   delegate_to: 127.0.0.1
   tags: proxy
   
-- name: Get rhvgui zip file
-  shell: cd /usr/share/ovirt-engine/ui-plugins/ && { curl -k -O https://"{{ virtual_ip }}"/rhvgui-resources ; cd -;}
+
+
+- name: create directory trilio-plugin-resources
+  file:
+    path: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
+    state: directory
   tags: proxy
 
-# - name: Install unzip
-#   yum:
-#     name: unzip
-#     state: present
-#   tags: proxy
 
-# - name: Untar rhvgui zip file
-#   unarchive:
-#     src: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
-#     dest: /usr/share/ovirt-engine/ui-plugins
-#     remote_src: yes
-#   tags: proxy
-  
+
+- name: copy trilio-plugin-resources
+  copy:
+    src: /opt/stack/rhvgui-resources/trilio-plugin-resources/
+    dest: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
+    directory_mode: yes
+  tags: proxy
+
+
+- name: copy json file
+  copy:
+    src: /opt/stack/rhvgui-resources/trilio-plugin.json
+    dest: /usr/share/ovirt-engine/ui-plugins/
+  tags: proxy
 
 - name: main | updating rhvgui config file for new react app
   action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources/config.js
@@ -570,16 +633,5 @@
     - proxy
 
 
-- name: Removing ovirt-imageio tar file
-  file:
-    state: absent
-    path: /opt/ovirt-imageio.tar.gz
-  tags:
-    - daemon
-    - proxy
 
-# - name: Removing rhvgui zip file
-#   file:
-#     state: absent
-#     path: /usr/share/ovirt-engine/ui-plugins/rhvgui.zip
-#   tags: proxy
+

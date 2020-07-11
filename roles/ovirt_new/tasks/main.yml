@@ -8,10 +8,45 @@
     - clean-daemon
 
 
-- name: Get ovirt-imageio tar file
-  shell: cd /opt/ && { curl -k -O https://"{{ virtual_ip }}"/ovirt-imageio.tar.gz ; cd -;}
+- name: Remove imageio if already present
+  file:
+    path: /opt/ovirt-imageio
+    state: absent
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: check daemon version
+  command: yum info ovirt-imageio-daemon
+  register: daemon_version
+  tags: daemon
+ 
+- name: Get rpm for ovirt-1.6
+  shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.6-0.x86_64.rpm
+  args:
+    chdir: /opt
+  when: daemon_version.stdout | regex_search('2.0.3')
   tags:
     - daemon
+
+
+- name: extract rpm 1.6
+  shell: rpm2cpio ovirt-imageio-1.6-0.x86_64.rpm | cpio -idmv
+  args:
+    chdir: /opt
+  when: daemon_version.stdout | regex_search('2.0.3')
+  tags:
+    - daemon
+
+- name: Change directory permissions
+  file:
+    path: /opt/ovirt-imageio
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  tags: daemon
+
 
 - name: Check if redis service is running
   service:
@@ -259,21 +294,6 @@
     key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
   tags: daemon
 
-- name: Remove imageio if already present
-  file:
-    path: /opt/ovirt-imageio
-    state: absent
-  tags: 
-    - daemon
-    - clean-daemon
-
-- name: Untar ovirt-imageio tar file
-  unarchive:
-    src: /opt/ovirt-imageio.tar.gz
-    dest: /opt
-    copy: no
-  tags: daemon
-
 
 - name: Create directory to record daemon logs
   file:
@@ -293,12 +313,6 @@
     - clean-daemon
   
 
-- name: Check if Daemon was already configured.
-  stat:
-    path: /usr/lib/systemd/system/ovirt-datamover-original.service
-  register: stat_result
-  tags: daemon
-
 - name: Rename existing ovirt-datamover service file to original before replacing
   copy:
     src: /usr/lib/systemd/system/ovirt-datamover.service
@@ -312,6 +326,7 @@
   file:
     path: /usr/lib/systemd/system/ovirt-datamover.service
     state: absent
+  when: stat_result.stat.exists == True
   tags: 
     - daemon
 
@@ -403,7 +418,7 @@
   tags: daemon
 
 - name: Getting fqdn of host
-  shell: python -c "import socket; print socket.gethostname()"
+  shell: hostname
   register: fqdn
   tags: daemon
 
@@ -425,7 +440,11 @@
 
 
   
-
+- name: Remove ovirt rpm
+  file:
+    path: /opt/ovirt-imageio-1.6-0.x86_64.rpm
+    state: absent
+  tags: daemon
 
 # proxy deployment
 
@@ -436,20 +455,7 @@
     key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
   tags: proxy
 
-- name: Remove imageio if already present
-  file:
-    path: /opt/ovirt-imageio/
-    state: absent
-  tags: 
-    - proxy
-    - clean-proxy
 
-- name: Untar ovirt-imageio tar file
-  unarchive:
-    src: /opt/ovirt-imageio.tar.gz
-    dest: /opt
-    copy: no
-  tags: proxy
 
 
 - name: create directory trilio-plugin-resources
@@ -480,13 +486,6 @@
     - proxy
 
 
-- name: Removing ovirt-imageio tar file
-  file:
-    state: absent
-    path: /opt/ovirt-imageio.tar.gz
-  tags:
-    - daemon
-    - proxy
 
 
 
