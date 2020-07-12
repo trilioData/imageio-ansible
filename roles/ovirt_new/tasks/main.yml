@@ -1,5 +1,5 @@
 ---
-
+# tasks file for test
 - name: Read variables from triliovault-nodes file
   include_vars: /etc/ansible/group_vars/triliovault-nodes
   tags:
@@ -16,45 +16,11 @@
     - daemon
     - clean-daemon
 
-- name: Remove imageio if already present
-  file:
-    path: /opt/ovirt-imageio
-    state: absent
-  tags: 
-    - proxy
-    - clean-proxy
-
-
 - name: check daemon version
   command: yum info ovirt-imageio-daemon
   register: daemon_version
   tags: daemon
  
-
-- name: Get rpm for ovirt-1.5
-  shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.0-0.x86_64.rpm
-  args:
-    chdir: /opt
-  when: daemon_version.stdout | regex_search('1.5.3')
-  tags: 
-    - daemon
-
-- name: check proxy version
-  command: yum info ovirt-imageio-proxy
-  register: proxy_version
-  tags: proxy
- 
-
-- name: Get rpm for ovirt-1.5
-  shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.0-0.x86_64.rpm
-  args:
-    chdir: /opt
-  when: proxy_version.stdout | regex_search('1.5.3')
-  tags:
-    - proxy
-
-
-
 - name: Get rpm for ovirt-1.6
   shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.6-0.x86_64.rpm
   args:
@@ -63,23 +29,6 @@
   tags:
     - daemon
 
-- name: extract rpm on daemon
-  shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
-  args:
-    chdir: /opt
-  when: daemon_version.stdout | regex_search('1.5.3')
-  tags: 
-    - daemon
-
-- name: extract rpm for ovirt-1.5
-  shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
-  args:
-    chdir: /opt
-  when: proxy_version.stdout | regex_search('1.5.3')
-  tags: 
-    - proxy
-
-  
 
 - name: extract rpm 1.6
   shell: rpm2cpio ovirt-imageio-1.6-0.x86_64.rpm | cpio -idmv
@@ -108,6 +57,10 @@
 
 - name: Adding a redis config entry to not to save redis data
   command: redis-cli config set stop-writes-on-bgsave-error no
+  tags: daemon
+
+- name: Activate 5000 port in firewall
+  shell: firewall-cmd --zone=public --add-port=5000/tcp
   tags: daemon
 
 - name: Stopping playbook execution as redis in not installed
@@ -238,42 +191,83 @@
   when: test_grep.stdout == ""
   tags: daemon
 
-- name: Append empty line to daemon config file
+- name: Check if ovirt-datamover directory exists
+  stat:
+    path: /etc/ovirt-datamover
+  register: my_folder
+  tags: daemon
+ 
+- name: echo if directory already existed
+  debug:
+    msg: "the ovirt-datamover directory is already existed"
+  when: my_folder.stat.exists
+  tags: daemon
+ 
+- name: Create ovirt-datamover directory if not exists
+  file:
+    path: /etc/ovirt-datamover
+    state: directory
+    mode: 0755
+    group: kvm
+    owner: vdsm
+  when: my_folder.stat.exists == false
+  tags: daemon
+
+- name: Check if datamover.conf exists
+  stat: path=/etc/ovirt-datamover/datamover.conf
+  register: status
+  tags: daemon
+
+- debug: var=status
+  tags: daemon
+
+- name: Touch datamover.conf file if does not exist
+  file:
+    state: touch
+    path: /etc/ovirt-datamover/datamover.conf
+    owner: vdsm
+    group: kvm
+    mode: 0755
+  when: status.stat.exists == false
+  tags: daemon
+
+- name: Append empty line to datamover config file
   lineinfile:
     line: ''
     insertafter: EOF
-    dest: /etc/ovirt-imageio-daemon/daemon.conf
+    dest: /etc/ovirt-datamover/datamover.conf
   with_items:
   - "\n"
   tags: daemon
 
-- name: Append encoded nfs share to file
+- name: Append encoded nfs share to datamover conf file
   lineinfile:
     line: "[nfs_config]"
     insertafter: EOF
-    dest: /etc/ovirt-imageio-daemon/daemon.conf
+    dest: /etc/ovirt-datamover/datamover.conf
   tags: daemon
 
 - name: Append encoded nfs share to file
   lineinfile:
     line: "nfs_share = {{ storage_nfs_export }}"
     insertafter: EOF
-    dest: /etc/ovirt-imageio-daemon/daemon.conf
+    dest: /etc/ovirt-datamover/datamover.conf
   tags: daemon
 
 - name: Append mount path to file
   lineinfile:
     line: "mount_path = {{ mount_path }}"
     insertafter: EOF
-    dest: /etc/ovirt-imageio-daemon/daemon.conf
+    dest: /etc/ovirt-datamover/datamover.conf
   tags: daemon
 
-- name: Stop the existing ovirt-imageio-daemon service
+
+- name: Stop the existing ovirt-datamover service
   service:
-    name: ovirt-imageio-daemon
+    name: ovirt-datamover
     state: stopped
   ignore_errors: yes
-  register: ovirt_imageio_daemon
+  register: ovirt_datamover
   tags: 
     - daemon
     - clean-daemon
@@ -288,9 +282,9 @@
     - clean-daemon
 
 - debug:
-    msg: "ovirt-imageio-daemon is stopped"
+    msg: "ovirt-datamover is stopped"
   ignore_errors: yes
-  when: ovirt_imageio_daemon.state == "stopped"
+  when: ovirt_datamover.state == "stopped"
   tags: daemon
 
 - name: Add controller key to authorized_keys
@@ -309,54 +303,20 @@
     group: kvm
     recurse: yes
   tags: daemon
-   
-- name : create directory to record imageio-proxy logs
-  file:
-    path: /var/log/imageio_proxy
-    state: directory
-    owner: vdsm
-    group: kvm
-    recurse: yes
-  tags: proxy
-
-
-- name: Setup logrotate.d scripts
-  template:
-    src: logrotate.d.j2
-    dest: "{{ logrotate_conf_dir }}{{ item.name }}"
-  with_items: "{{ logrotate_scripts }}"
-  when: logrotate_scripts is defined
-  tags:
-    - daemon
-    - proxy
-
-- name: Create directory to record logs
-  file:
-    path: /var/log/ovirt_celery
-    state: directory
-    owner: vdsm
-    group: kvm
-    recurse: yes
-  tags: daemon
 
 - name: Check if Daemon was already configured.
   stat:
-    path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
+    path: /usr/lib/systemd/system/ovirt-datamover-original.service
   register: stat_result
   tags: 
     - daemon
     - clean-daemon
+  
 
-- name: Check if Daemon was already configured.
-  stat:
-    path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
-  register: stat_result
-  tags: daemon
-
-- name: Rename existing ovirt-imageio service file to original before replacing
+- name: Rename existing ovirt-datamover service file to original before replacing
   copy:
-    src: /usr/lib/systemd/system/ovirt-imageio-daemon.service
-    dest: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
+    src: /usr/lib/systemd/system/ovirt-datamover.service
+    dest: /usr/lib/systemd/system/ovirt-datamover-original.service
     remote_src: yes
   become: true
   when: stat_result.stat.exists == False
@@ -364,40 +324,24 @@
 
 - name: Remove service file if already present
   file:
-    path: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    path: /usr/lib/systemd/system/ovirt-datamover.service
     state: absent
+  when: stat_result.stat.exists == True
   tags: 
     - daemon
 
-# Added task to fix if user runs uninstallation for more that 1 time
 - name: Remove service file if already present
   file:
-    path: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    path: /usr/lib/systemd/system/ovirt-datamover.service
     state: absent
   when: stat_result.stat.exists == True
   tags:
     - clean-daemon
 
-- name: Replace file with original contents
+- name: Copy the datamover service file
   copy:
-    src: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
-    dest: /usr/lib/systemd/system/ovirt-imageio-daemon.service
-    remote_src: yes
-  become: true
-  when: stat_result.stat.exists == True
-  tags: clean-daemon
-
-- name: Remove original service file if already present
-  file:
-    path: /usr/lib/systemd/system/ovirt-imageio-daemon-original.service
-    state: absent
-  when: stat_result.stat.exists == True
-  tags: clean-daemon
-
-- name: Copy the ImageIO Daemon service file
-  copy:
-    src: /opt/ovirt-imageio/service-files/ovirt-imageio-daemon.service
-    dest: /usr/lib/systemd/system/ovirt-imageio-daemon.service
+    src: /opt/ovirt-imageio/service-files/ovirt-datamover.service
+    dest: /usr/lib/systemd/system/ovirt-datamover.service
     remote_src: yes
     mode: u=rw,g=r,o=r
   tags: daemon
@@ -432,13 +376,13 @@
 
 - name: Start ImageIO Daemon Service
   service:
-    name: ovirt-imageio-daemon
+    name: ovirt-datamover
     enabled: yes
     state: started
   tags: 
     - daemon
     - clean-daemon
-  
+
 - name: Start Celery worker service
   command: systemctl start ovirt_celery
   tags: daemon
@@ -460,25 +404,49 @@
     dest: /etc/fstab
   tags: clean-daemon
 
+# Adding host entry in /etc/host of TVM
+
+- name: register target ip
+  set_fact:
+    target_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
+  register: target_ip
+  tags: daemon
+
+
+- debug:
+    var: target_ip
+  tags: daemon
+
+- name: Getting fqdn of host
+  shell: hostname
+  register: fqdn
+  tags: daemon
+
+- name: Removing existing host entry from /etc/hosts before adding new
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ target_ip }}'
+    state: absent
+  tags: daemon
+
+
+- name: Adding fqdn value to /etc/hosts of TVM
+  lineinfile:
+    path: /etc/hosts
+    regexp: '(^\s+{{ target_ip }}([\w=/\-\.\,\_]+)*)\s*$'
+    line: "{{ target_ip }} {{ fqdn.stdout }}"
+  delegate_to: 127.0.0.1
+  tags: daemon
+
+
+  
 - name: Remove ovirt rpm
   file:
-    path: /opt/ovirt-imageio-1.0-0.x86_64.rpm
+    path: /opt/ovirt-imageio-1.6-0.x86_64.rpm
     state: absent
-  tags: 
-    - daemon
-    - proxy
-  
-# Proxy service deployment
+  tags: daemon
 
-- name: Stop the existing ImageIO Proxy service
-  service:
-    name: ovirt-imageio-proxy
-    state: stopped
-  ignore_errors: yes
-  register: ovirt-imageio-proxy
-  tags: 
-    - proxy
-    - clean-proxy
+# proxy deployment
 
 - name: Add controller key to authorized_keys
   authorized_key:
@@ -488,121 +456,6 @@
   tags: proxy
 
 
-
-- name: Check if Proxy was already configured.
-  stat:
-    path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
-  register: stat_result
-  tags: 
-    - proxy
-    - clean-proxy
-
-- name: Check if Proxy was already configured.
-  stat:
-    path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
-  register: stat_result
-  tags: proxy
-
-- name: Rename existing ovirt-imageio-proxy service file to original before replacing
-  copy:
-    src: /usr/lib/systemd/system/ovirt-imageio-proxy.service
-    dest: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
-    remote_src: yes
-  become: true
-  when: stat_result.stat.exists == False
-  tags: proxy
-
-- name: Remove service file if already present
-  file:
-    path: /usr/lib/systemd/system/ovirt-imageio-proxy.service
-    state: absent
-  tags: 
-    - proxy
-
-# Added task to fix if user runs uninstallation for more that 1 time
-
-- name: Remove service file if already present
-  file:
-    path: /usr/lib/systemd/system/ovirt-imageio-proxy.service
-    state: absent
-  when: stat_result.stat.exists == True
-  tags:
-    - clean-proxy
-
-- name: Replace file with original contents
-  copy:
-    src: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
-    dest: /usr/lib/systemd/system/ovirt-imageio-proxy.service
-    remote_src: yes
-  become: true
-  when: stat_result.stat.exists == True
-  tags: clean-proxy
-
-- name: Remove service file if already present
-  file:
-    path: /usr/lib/systemd/system/ovirt-imageio-proxy-original.service
-    state: absent
-  when: stat_result.stat.exists == True
-  tags:
-    - clean-proxy
-
-- name: Copy the service file
-  copy:
-    src: /opt/ovirt-imageio/service-files/ovirt-imageio-proxy.service
-    dest: /usr/lib/systemd/system/ovirt-imageio-proxy.service
-    remote_src: yes
-    mode: u=rw,g=r,o=r
-  tags: proxy
-
-- name: Activate the virtualenv
-  shell: source /opt/ovirt-imageio/bin/activate
-  tags: proxy
-
-- name: Systemctl daemon reload
-  command: systemctl daemon-reload
-  tags: 
-    - proxy
-    - clean-proxy
-
-- name: Start ImageIO Proxy Service
-  service:
-    name: ovirt-imageio-proxy
-    enabled: yes
-    state: started
-  tags: 
-    - proxy
-    - clean-proxy 
-
-- name: Getting fqdn of host
-  shell: python -c "import socket; print socket.gethostname()"
-  register: fqdn
-  tags: proxy
-
-- name: Get IP from ovirt engine url
-  shell: echo "{{ rhv_engine_url }}" | sed 's/https:\/\///'
-  register: engine
-  tags: proxy
-
-- name: Removing trailing slash from engine url
-  shell: echo "{{ engine.stdout }}" | sed -e 's#/$##'
-  register: engine
-  tags: proxy
-
-- name: Removing existing host entry from /etc/hosts before adding new
-  lineinfile:
-    dest: /etc/hosts
-    regexp: '^{{ engine.stdout }}'
-    state: absent
-  tags: proxy
-  
-- name: Adding fqdn value to /etc/hosts of TVM
-  lineinfile:
-    path: /etc/hosts
-    regexp: '(^\s+{{ engine.stdout }}([\w=/\-\.\,\_]+)*)\s*$'
-    line: "{{ engine.stdout }} {{ fqdn.stdout }}"
-  delegate_to: 127.0.0.1
-  tags: proxy
-  
 
 
 - name: create directory trilio-plugin-resources
@@ -635,3 +488,8 @@
 
 
 
+
+
+
+
+  
