@@ -374,7 +374,7 @@
     - daemon
     - clean-daemon
 
-- name: Start ImageIO Daemon Service
+- name: Start ovirt-datamover Service
   service:
     name: ovirt-datamover
     enabled: yes
