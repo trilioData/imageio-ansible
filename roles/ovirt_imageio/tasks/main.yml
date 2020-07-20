@@ -268,6 +268,14 @@
     dest: /etc/ovirt-imageio-daemon/daemon.conf
   tags: daemon
 
+- name: Remove mount path from daemon.conf for clean-daemon
+  ini_file:
+    path: /etc/ovirt-imageio-daemon/daemon.conf
+    section: nfs_config
+    state: absent
+  tags: clean-daemon
+
+
 - name: Stop the existing ovirt-imageio-daemon service
   service:
     name: ovirt-imageio-daemon

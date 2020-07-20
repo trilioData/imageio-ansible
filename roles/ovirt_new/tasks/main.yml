@@ -262,6 +262,13 @@
   tags: daemon
 
 
+- name: Remove mount path from daemon.conf for clean-daemon
+  ini_file:
+    path: /etc/ovirt-datamover/datamover.conf
+    section: nfs_config
+    state: absent
+  tags: clean-daemon
+
 - name: Stop the existing ovirt-datamover service
   service:
     name: ovirt-datamover
@@ -319,7 +326,7 @@
     dest: /usr/lib/systemd/system/ovirt-datamover-original.service
     remote_src: yes
   become: true
-  when: stat_result.stat.exists == False
+  when: stat_result.stat.exists == True
   tags: daemon
 
 - name: Remove service file if already present
@@ -330,6 +337,16 @@
   tags: 
     - daemon
 
+- name: Replace file with original contents
+  copy:
+    src: /usr/lib/systemd/system/ovirt-datamover-original.service
+    dest: /usr/lib/systemd/system/ovirt-datamover.service
+    remote_src: yes
+  become: true
+  when: stat_result.stat.exists == True
+  tags: clean-daemon
+
+
 - name: Remove service file if already present
   file:
     path: /usr/lib/systemd/system/ovirt-datamover.service
@@ -337,6 +354,32 @@
   when: stat_result.stat.exists == True
   tags:
     - clean-daemon
+
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-datamover.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags:
+    - clean-daemon
+
+
+- name: Remove service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-datamover.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags:
+    - clean-daemon
+
+  
+- name: Remove original service file if already present
+  file:
+    path: /usr/lib/systemd/system/ovirt-datamover-original.service
+    state: absent
+  when: stat_result.stat.exists == True
+  tags: clean-daemon
 
 - name: Copy the datamover service file
   copy:
@@ -374,7 +417,7 @@
     - daemon
     - clean-daemon
 
-- name: Start ImageIO Daemon Service
+- name: Start ovirt-datamover Service
   service:
     name: ovirt-datamover
     enabled: yes
