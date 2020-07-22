@@ -311,6 +311,24 @@
     recurse: yes
   tags: daemon
 
+- name: Setup logrotate.d scripts
+  template:
+    src: logrotate.d.j2
+    dest: "{{ logrotate_conf_dir }}{{ item.name }}"
+  with_items: "{{ logrotate_scripts }}"
+  when: logrotate_scripts is defined
+  tags:
+    - daemon
+
+- name: Create directory to record logs
+  file:
+    path: /var/log/ovirt_celery
+    state: directory
+    owner: vdsm
+    group: kvm
+    recurse: yes
+  tags: daemon
+
 - name: Check if Daemon was already configured.
   stat:
     path: /usr/lib/systemd/system/ovirt-datamover-original.service

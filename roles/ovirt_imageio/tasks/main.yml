@@ -71,7 +71,7 @@
   tags: 
     - daemon
 
-- name: extract rpm for ovirt-1.5
+- name: extract rpm on proxy
   shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
   args:
     chdir: /opt
