@@ -1,4 +1,37 @@
 ---
+# tasks file for site
+
+- name: Copy file from /etc/tvault-config/tvault-config.conf
+  copy:
+    src: /etc/tvault-config/tvault-config.conf
+    dest: /etc/
+  tags: daemon
+
+- name: Read file
+  shell: cat /etc/tvault-config.conf
+  args:
+    chdir: /etc/
+  register: config_status
+  tags: daemon
+
+- name: Successful tvm config
+  debug: msg="TVM is configured successfully"
+  when: config_status.stdout is search('configured')
+  tags: daemon
+
+- name: Check status of tvm config
+  fail:
+    msg: TVM is not configured successfully
+  when: '"configured" not in config_status.stdout'
+  tags: daemon 
+
+- name: Remove file from host
+  file:
+    path: /etc/tvault-config.conf
+    state: absent
+  tags: daemon
+
+
 
 - name: Read variables from triliovault-nodes file
   include_vars: /etc/ansible/group_vars/triliovault-nodes
@@ -31,63 +64,77 @@
   tags: daemon
  
 
-- name: Get rpm for ovirt-1.5
-  shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.0-0.x86_64.rpm
-  args:
-    chdir: /opt
+- name: Install rpm from Gemfury
+  shell: yum -y install ovirt-imageio_1.5
   when: daemon_version.stdout | regex_search('1.5.3')
-  tags: 
+  tags:
     - daemon
+
+
+# - name: Get rpm for ovirt-1.5
+#   shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.0-0.x86_64.rpm
+#   args:
+#     chdir: /opt
+#   when: daemon_version.stdout | regex_search('1.5.3')
+#   tags: 
+#     - daemon
 
 - name: check proxy version
   command: yum info ovirt-imageio-proxy
   register: proxy_version
   tags: proxy
  
-
-- name: Get rpm for ovirt-1.5
-  shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.0-0.x86_64.rpm
-  args:
-    chdir: /opt
+- name: Install rpm from Gemfury
+  shell: yum -y install ovirt-imageio_1.5
   when: proxy_version.stdout | regex_search('1.5.3')
   tags:
     - proxy
 
 
 
-- name: Get rpm for ovirt-1.6
-  shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.6-0.x86_64.rpm
-  args:
-    chdir: /opt
-  when: daemon_version.stdout | regex_search('2.0.3')
-  tags:
-    - daemon
+# - name: Get rpm for ovirt-1.5
+#   shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.0-0.x86_64.rpm
+#   args:
+#     chdir: /opt
+#   when: proxy_version.stdout | regex_search('1.5.3')
+#   tags:
+#     - proxy
 
-- name: extract rpm on daemon
-  shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
-  args:
-    chdir: /opt
-  when: daemon_version.stdout | regex_search('1.5.3')
-  tags: 
-    - daemon
 
-- name: extract rpm on proxy
-  shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
-  args:
-    chdir: /opt
-  when: proxy_version.stdout | regex_search('1.5.3')
-  tags: 
-    - proxy
+
+# - name: Get rpm for ovirt-1.6
+#   shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.6-0.x86_64.rpm
+#   args:
+#     chdir: /opt
+#   when: daemon_version.stdout | regex_search('2.0.3')
+#   tags:
+#     - daemon
+
+# - name: extract rpm on daemon
+#   shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
+#   args:
+#     chdir: /opt
+#   when: daemon_version.stdout | regex_search('1.5.3')
+#   tags: 
+#     - daemon
+
+# - name: extract rpm on proxy
+#   shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
+#   args:
+#     chdir: /opt
+#   when: proxy_version.stdout | regex_search('1.5.3')
+#   tags: 
+#     - proxy
 
   
 
-- name: extract rpm 1.6
-  shell: rpm2cpio ovirt-imageio-1.6-0.x86_64.rpm | cpio -idmv
-  args:
-    chdir: /opt
-  when: daemon_version.stdout | regex_search('2.0.3')
-  tags:
-    - daemon
+# - name: extract rpm 1.6
+#   shell: rpm2cpio ovirt-imageio-1.6-0.x86_64.rpm | cpio -idmv
+#   args:
+#     chdir: /opt
+#   when: daemon_version.stdout | regex_search('2.0.3')
+#   tags:
+#     - daemon
 
 - name: Change directory permissions
   file:
@@ -97,6 +144,15 @@
     group: kvm
     recurse: yes
   tags: daemon
+
+- name: Untar venv in ovirt-imageio
+  shell: tar -pxvzf venv.tar.gz
+  args:
+    chdir: /opt/ovirt-imageio
+  tags:
+    - daemon
+    - proxy
+
 
 
 - name: Check if redis service is running
@@ -411,7 +467,7 @@
   tags: daemon
 
 - name: Activate the celery virtualenv
-  shell: source /opt/ovirt-imageio/bin/activate
+  shell: source /opt/ovirt-imageio/venv/bin/activate
   tags: daemon
 
 - name: Remove service file if already present
@@ -563,7 +619,7 @@
   tags: proxy
 
 - name: Activate the virtualenv
-  shell: source /opt/ovirt-imageio/bin/activate
+  shell: source /opt/ovirt-imageio/venv/bin/activate
   tags: proxy
 
 - name: Systemctl daemon reload

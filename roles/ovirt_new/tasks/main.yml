@@ -1,5 +1,36 @@
 ---
 # tasks file for test
+
+- name: Copy file from /etc/tvault-config/tvault-config.conf
+  copy:
+    src: /etc/tvault-config/tvault-config.conf
+    dest: /etc/
+  tags: daemon
+
+- name: Read file
+  shell: cat /etc/tvault-config.conf
+  args:
+    chdir: /etc/
+  register: config_status
+  tags: daemon
+
+- name: Successful tvm config
+  debug: msg="TVM is configured successfully"
+  when: config_status.stdout is search('configured')
+  tags: daemon
+
+- name: Check status of tvm config
+  fail:
+    msg: TVM is not configured successfully
+  when: '"configured" not in config_status.stdout'
+  tags: daemon 
+
+- name: Remove file from host
+  file:
+    path: /etc/tvault-config.conf
+    state: absent
+  tags: daemon
+
 - name: Read variables from triliovault-nodes file
   include_vars: /etc/ansible/group_vars/triliovault-nodes
   tags:
@@ -21,22 +52,43 @@
   register: daemon_version
   tags: daemon
  
-- name: Get rpm for ovirt-1.6
-  shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.6-0.x86_64.rpm
-  args:
-    chdir: /opt
+# - name: Get rpm for ovirt-1.6
+#   shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.6-0.x86_64.rpm
+#   args:
+#     chdir: /opt
+#   when: daemon_version.stdout | regex_search('2.0.3')
+#   tags:
+#     - daemon
+
+
+# - name: extract rpm 1.6
+#   shell: rpm2cpio ovirt-imageio-1.6-0.x86_64.rpm | cpio -idmv
+#   args:
+#     chdir: /opt
+#   when: daemon_version.stdout | regex_search('2.0.3')
+#   tags:
+#     - daemon
+
+- name: Install rpm from Gemfury
+  shell: dnf -y install ovirt-imageio_1.6
   when: daemon_version.stdout | regex_search('2.0.3')
   tags:
     - daemon
 
-
-- name: extract rpm 1.6
-  shell: rpm2cpio ovirt-imageio-1.6-0.x86_64.rpm | cpio -idmv
+- name: Untar venv in ovirt-imageio
+  shell: tar -pxvzf virtenv.tar.gz
   args:
-    chdir: /opt
-  when: daemon_version.stdout | regex_search('2.0.3')
+    chdir: /opt/ovirt-imageio
   tags:
     - daemon
+
+
+- name: Untar new venv
+  shell: tar -pxvzf venv.tar.gz
+  args:
+    chdir: /opt/ovirt-imageio/daemon/datamover
+  tags: daemon
+
 
 - name: Change directory permissions
   file:
@@ -320,6 +372,41 @@
   tags:
     - daemon
 
+
+# Adding host entry in /etc/host of TVM
+
+- name: register target ip
+  set_fact:
+    target_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
+  register: target_ip
+  tags: daemon
+
+
+- debug:
+    var: target_ip
+  tags: daemon
+
+- name: Getting fqdn of host
+  shell: hostname
+  register: fqdn
+  tags: daemon
+
+- name: Removing existing host entry from /etc/hosts before adding new
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ target_ip }}'
+    state: absent
+  tags: daemon
+
+
+- name: Adding fqdn value to /etc/hosts of TVM
+  lineinfile:
+    path: /etc/hosts
+    regexp: '(^\s+{{ target_ip }}([\w=/\-\.\,\_]+)*)\s*$'
+    line: "{{ target_ip }} {{ fqdn.stdout }}"
+  delegate_to: 127.0.0.1
+  tags: daemon
+
 - name: Create directory to record logs
   file:
     path: /var/log/ovirt_celery
@@ -408,7 +495,7 @@
   tags: daemon
 
 - name: Activate the celery virtualenv
-  shell: source /opt/ovirt-imageio/bin/activate
+  shell: source /opt/ovirt-imageio/virtenv/bin/activate
   tags: daemon
 
 - name: Remove service file if already present
@@ -465,39 +552,7 @@
     dest: /etc/fstab
   tags: clean-daemon
 
-# Adding host entry in /etc/host of TVM
 
-- name: register target ip
-  set_fact:
-    target_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
-  register: target_ip
-  tags: daemon
-
-
-- debug:
-    var: target_ip
-  tags: daemon
-
-- name: Getting fqdn of host
-  shell: hostname
-  register: fqdn
-  tags: daemon
-
-- name: Removing existing host entry from /etc/hosts before adding new
-  lineinfile:
-    dest: /etc/hosts
-    regexp: '^{{ target_ip }}'
-    state: absent
-  tags: daemon
-
-
-- name: Adding fqdn value to /etc/hosts of TVM
-  lineinfile:
-    path: /etc/hosts
-    regexp: '(^\s+{{ target_ip }}([\w=/\-\.\,\_]+)*)\s*$'
-    line: "{{ target_ip }} {{ fqdn.stdout }}"
-  delegate_to: 127.0.0.1
-  tags: daemon
 
 
   
@@ -505,7 +560,9 @@
   file:
     path: /opt/ovirt-imageio-1.6-0.x86_64.rpm
     state: absent
-  tags: daemon
+  tags: 
+    - daemon
+    - clean-daemon
 
 # proxy deployment
 
