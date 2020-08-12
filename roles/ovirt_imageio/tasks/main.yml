@@ -63,6 +63,33 @@
   register: daemon_version
   tags: daemon
  
+- name: Touch fury.repo file 
+  copy:
+    dest: "/etc/yum.repos.d/fury.repo"
+    content: |
+      [fury]
+      name=Gemfury Private Repo
+      baseurl=https://yum.fury.io/triliodata-rhv/
+      enabled=1
+      gpgcheck=0
+  tags: 
+    - daemon
+    - proxy
+
+- name: check rpm installation
+  shell: rpm -qa ovirt-imageio_1.5
+  register: output
+  tags:
+    - daemon
+    - proxy
+
+- name: Remove rpm if alreday installed
+  shell: rpm -e ovirt-imageio_1.5
+  when: output.stdout | regex_search('ovirt-imageio_1.5')
+  tags: 
+    - daemon
+    - proxy
+
 
 - name: Install rpm from Gemfury
   shell: yum -y install ovirt-imageio_1.5
@@ -71,13 +98,6 @@
     - daemon
 
 
-# - name: Get rpm for ovirt-1.5
-#   shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.0-0.x86_64.rpm
-#   args:
-#     chdir: /opt
-#   when: daemon_version.stdout | regex_search('1.5.3')
-#   tags: 
-#     - daemon
 
 - name: check proxy version
   command: yum info ovirt-imageio-proxy
@@ -91,50 +111,13 @@
     - proxy
 
 
-
-# - name: Get rpm for ovirt-1.5
-#   shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.0-0.x86_64.rpm
-#   args:
-#     chdir: /opt
-#   when: proxy_version.stdout | regex_search('1.5.3')
-#   tags:
-#     - proxy
-
-
-
-# - name: Get rpm for ovirt-1.6
-#   shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.6-0.x86_64.rpm
-#   args:
-#     chdir: /opt
-#   when: daemon_version.stdout | regex_search('2.0.3')
-#   tags:
-#     - daemon
-
-# - name: extract rpm on daemon
-#   shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
-#   args:
-#     chdir: /opt
-#   when: daemon_version.stdout | regex_search('1.5.3')
-#   tags: 
-#     - daemon
-
-# - name: extract rpm on proxy
-#   shell: rpm2cpio ovirt-imageio-1.0-0.x86_64.rpm | cpio -idmv
-#   args:
-#     chdir: /opt
-#   when: proxy_version.stdout | regex_search('1.5.3')
-#   tags: 
-#     - proxy
-
-  
-
-# - name: extract rpm 1.6
-#   shell: rpm2cpio ovirt-imageio-1.6-0.x86_64.rpm | cpio -idmv
-#   args:
-#     chdir: /opt
-#   when: daemon_version.stdout | regex_search('2.0.3')
-#   tags:
-#     - daemon
+- name: Untar venv in ovirt-imageio
+  shell: tar -pxvzf venv.tar.gz
+  args:
+    chdir: /opt/ovirt-imageio
+  tags:
+    - daemon
+    - proxy
 
 - name: Change directory permissions
   file:
@@ -144,15 +127,6 @@
     group: kvm
     recurse: yes
   tags: daemon
-
-- name: Untar venv in ovirt-imageio
-  shell: tar -pxvzf venv.tar.gz
-  args:
-    chdir: /opt/ovirt-imageio
-  tags:
-    - daemon
-    - proxy
-
 
 
 - name: Check if redis service is running
@@ -293,6 +267,15 @@
     dest: /etc/fstab
   when: test_grep.stdout == ""
   tags: daemon
+
+
+- name: Remove mount path from daemon.conf for daemon config
+  ini_file:
+    path: /etc/ovirt-imageio-daemon/daemon.conf
+    section: nfs_config
+    state: absent
+  tags: daemon
+
 
 - name: Append empty line to daemon config file
   lineinfile:
@@ -524,13 +507,6 @@
     dest: /etc/fstab
   tags: clean-daemon
 
-- name: Remove ovirt rpm
-  file:
-    path: /opt/ovirt-imageio-1.0-0.x86_64.rpm
-    state: absent
-  tags: 
-    - daemon
-    - proxy
   
 # Proxy service deployment
 

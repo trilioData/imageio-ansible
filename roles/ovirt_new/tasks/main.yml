@@ -52,22 +52,30 @@
   register: daemon_version
   tags: daemon
  
-# - name: Get rpm for ovirt-1.6
-#   shell: curl -L -O https://github.com/RasalC/ovirt-1.5_rpm/raw/rpm/ovirt-imageio-1.6-0.x86_64.rpm
-#   args:
-#     chdir: /opt
-#   when: daemon_version.stdout | regex_search('2.0.3')
-#   tags:
-#     - daemon
 
+- name: Touch fury.repo file 
+  copy:
+    dest: "/etc/yum.repos.d/fury.repo"
+    content: |
+      [fury]
+      name=Gemfury Private Repo
+      baseurl=https://yum.fury.io/triliodata-rhv/
+      enabled=1
+      gpgcheck=0
+  tags: 
+    - daemon
 
-# - name: extract rpm 1.6
-#   shell: rpm2cpio ovirt-imageio-1.6-0.x86_64.rpm | cpio -idmv
-#   args:
-#     chdir: /opt
-#   when: daemon_version.stdout | regex_search('2.0.3')
-#   tags:
-#     - daemon
+- name: check rpm installation
+  shell: rpm -qa ovirt-imageio_1.6
+  register: output
+  tags:
+    - daemon
+
+- name: Remove rpm if alreday installed
+  shell: rpm -e ovirt-imageio_1.6
+  when: output.stdout | regex_search('ovirt-imageio_1.6')
+  tags: 
+    - daemon
 
 - name: Install rpm from Gemfury
   shell: dnf -y install ovirt-imageio_1.6
@@ -283,6 +291,13 @@
   when: status.stat.exists == false
   tags: daemon
 
+- name: Remove mount path from datamover.conf befor daemon config
+  ini_file:
+    path: /etc/ovirt-datamover/datamover.conf
+    section: nfs_config
+    state: absent
+  tags: daemon
+
 - name: Append empty line to datamover config file
   lineinfile:
     line: ''
@@ -314,7 +329,7 @@
   tags: daemon
 
 
-- name: Remove mount path from daemon.conf for clean-daemon
+- name: Remove mount path from datamover.conf for clean-daemon
   ini_file:
     path: /etc/ovirt-datamover/datamover.conf
     section: nfs_config
@@ -552,17 +567,6 @@
     dest: /etc/fstab
   tags: clean-daemon
 
-
-
-
-  
-- name: Remove ovirt rpm
-  file:
-    path: /opt/ovirt-imageio-1.6-0.x86_64.rpm
-    state: absent
-  tags: 
-    - daemon
-    - clean-daemon
 
 # proxy deployment
 
