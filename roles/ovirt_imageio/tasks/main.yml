@@ -348,6 +348,34 @@
   tags: daemon
 
 
+# changes for adding host fqdn to TVM
+
+- name: register target ip
+  set_fact:
+    host_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
+  register: host_ip
+  tags: daemon
+
+
+- debug:
+    var: host_ip
+  tags: daemon
+
+- name: Getting fqdn of host
+  shell: hostname
+  register: fqdn
+  tags: daemon
+
+
+- name: Adding fqdn value to /etc/hosts of TVM
+  lineinfile:
+    path: /etc/hosts
+    regexp: '(^\s+{{ host_ip }}([\w=/\-\.\,\_]+)*)\s*$'
+    line: "{{ host_ip }} {{ fqdn.stdout }}"
+  delegate_to: 127.0.0.1
+  tags: daemon
+
+
 - name: Create directory to record daemon logs
   file:
     path: /var/log/imageio_daemon

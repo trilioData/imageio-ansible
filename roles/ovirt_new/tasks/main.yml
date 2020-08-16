@@ -546,13 +546,21 @@
     - daemon
     - clean-daemon
 
-- name: Start Celery worker service
-  command: systemctl start ovirt_celery
-  tags: daemon
+- name: Start ovirt-celery Service
+  service:
+    name: ovirt_celery
+    enabled: yes
+    state: started
+  tags: 
+    - daemon
 
-- name: Enable Celery worker service
-  command: systemctl enable ovirt_celery
-  tags: daemon
+# - name: Start Celery worker service
+#   command: systemctl start ovirt_celery
+#   tags: daemon
+
+# - name: Enable Celery worker service
+#   command: systemctl enable ovirt_celery
+#   tags: daemon
 
 - name: Unmounting existing mount path
   mount: 
@@ -606,9 +614,27 @@
   action: template src=data.js.j2 dest=/usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources/config.js
   tags:
     - proxy
+# Added changes for adding ca.pem to /etc/workloadmgr of TVM
+
+- name: Rename ca.pem to engine.pem
+  shell: cp ca.pem engine.pem
+  args:
+    chdir: /etc/pki/ovirt-engine
+  tags: proxy
+ 
+- name: copy engine.pem to TVM
+  fetch:
+    src: /etc/pki/ovirt-engine/engine.pem
+    dest: /etc/workloadmgr/
+    flat: yes
+  tags: proxy
 
 
-
+- name: Remove engine.pem from manager
+  shell: rm -f engine.pem
+  args:
+    chdir: /etc/pki/ovirt-engine
+  tags: proxy
 
 
 
