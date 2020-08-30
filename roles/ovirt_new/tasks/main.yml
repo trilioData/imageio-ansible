@@ -1,36 +1,6 @@
 ---
 # tasks file for test
 
-- name: Copy file from /etc/tvault-config/tvault-config.conf
-  copy:
-    src: /etc/tvault-config/tvault-config.conf
-    dest: /etc/
-  tags: daemon
-
-- name: Read file
-  shell: cat /etc/tvault-config.conf
-  args:
-    chdir: /etc/
-  register: config_status
-  tags: daemon
-
-- name: Successful tvm config
-  debug: msg="TVM is configured successfully"
-  when: config_status.stdout is search('configured')
-  tags: daemon
-
-- name: Check status of tvm config
-  fail:
-    msg: TVM is not configured successfully
-  when: '"configured" not in config_status.stdout'
-  tags: daemon 
-
-- name: Remove file from host
-  file:
-    path: /etc/tvault-config.conf
-    state: absent
-  tags: daemon
-
 - name: Read variables from triliovault-nodes file
   include_vars: /etc/ansible/group_vars/triliovault-nodes
   tags:
@@ -50,8 +20,27 @@
 - name: check daemon version
   command: yum info ovirt-imageio-daemon
   register: daemon_version
-  tags: daemon
+  tags: 
+    - daemon
+    - clean-daemon 
+
  
+- name: Check if fury.repo file exixts
+  stat:
+    path: /etc/yum.repos.d/fury.repo   
+  register: fury_status
+  tags:
+    - daemon
+    - clean-daemon 
+
+- name: Remove fury.repo file if exists
+  file:
+    state: absent
+    path: /etc/yum.repos.d/fury.repo
+  when: fury_status.stat.exists
+  tags:
+    - daemon
+    - clean-daemon
 
 - name: Touch fury.repo file 
   copy:
@@ -70,12 +59,14 @@
   register: output
   tags:
     - daemon
+    - clean-daemon
 
 - name: Remove rpm if alreday installed
   shell: rpm -e ovirt-imageio_1.6
   when: output.stdout | regex_search('ovirt-imageio_1.6')
   tags: 
     - daemon
+    - clean-daemon
 
 - name: Install rpm from Gemfury
   shell: dnf -y install ovirt-imageio_1.6
@@ -120,8 +111,15 @@
   tags: daemon
 
 - name: Activate 5000 port in firewall
-  shell: firewall-cmd --zone=public --add-port=5000/tcp
+  firewalld:
+    port: 5000/tcp
+    permanent: yes
+    state: enabled
   tags: daemon
+
+# - name: Activate 5000 port in firewall
+#   shell: firewall-cmd --zone=public --add-port=5000/tcp
+#   tags: daemon
 
 - name: Stopping playbook execution as redis in not installed
   fail: msg="Please install redis" 
@@ -431,75 +429,92 @@
     recurse: yes
   tags: daemon
 
-- name: Check if Daemon was already configured.
+- name: Check if ovirt-datamover.service file exists
   stat:
-    path: /usr/lib/systemd/system/ovirt-datamover-original.service
-  register: stat_result
-  tags: 
-    - daemon
-    - clean-daemon
+    path: /usr/lib/systemd/system/ovirt-datamover.service
+  register: datamover_status
+  tags:
+     - daemon
+     - clean-daemon
+
+- name: Remove ovirt-datamover.service file if exists
+  file:
+    state: absent
+    path: /usr/lib/systemd/system/ovirt-datamover.service
+  when: datamover_status.stat.exists
+  tags:
+     - daemon
+     - clean-daemon
+
+# - name: Check if Daemon was already configured.
+#   stat:
+#     path: /usr/lib/systemd/system/ovirt-datamover-original.service
+#   register: stat_result
+#   tags: 
+#     - daemon
+#     - clean-daemon
   
 
-- name: Rename existing ovirt-datamover service file to original before replacing
-  copy:
-    src: /usr/lib/systemd/system/ovirt-datamover.service
-    dest: /usr/lib/systemd/system/ovirt-datamover-original.service
-    remote_src: yes
-  become: true
-  when: stat_result.stat.exists == True
-  tags: daemon
+# - name: Rename existing ovirt-datamover service file to original before replacing
+#   copy:
+#     src: /usr/lib/systemd/system/ovirt-datamover.service
+#     dest: /usr/lib/systemd/system/ovirt-datamover-original.service
+#     remote_src: yes
+#   become: true
+#   when: stat_result.stat.exists == True
+#   tags: daemon
 
-- name: Remove service file if already present
-  file:
-    path: /usr/lib/systemd/system/ovirt-datamover.service
-    state: absent
-  when: stat_result.stat.exists == True
-  tags: 
-    - daemon
+# - name: Remove service file if already present
+#   file:
+#     path: /usr/lib/systemd/system/ovirt-datamover.service
+#     state: absent
+#   when: stat_result.stat.exists == True
+#   tags: 
+#     - daemon
 
-- name: Replace file with original contents
-  copy:
-    src: /usr/lib/systemd/system/ovirt-datamover-original.service
-    dest: /usr/lib/systemd/system/ovirt-datamover.service
-    remote_src: yes
-  become: true
-  when: stat_result.stat.exists == True
-  tags: clean-daemon
-
-
-- name: Remove service file if already present
-  file:
-    path: /usr/lib/systemd/system/ovirt-datamover.service
-    state: absent
-  when: stat_result.stat.exists == True
-  tags:
-    - clean-daemon
+# - name: Replace file with original contents
+#   copy:
+#     src: /usr/lib/systemd/system/ovirt-datamover-original.service
+#     dest: /usr/lib/systemd/system/ovirt-datamover.service
+#     remote_src: yes
+#   become: true
+#   when: stat_result.stat.exists == True
+#   tags: clean-daemon
 
 
-- name: Remove service file if already present
-  file:
-    path: /usr/lib/systemd/system/ovirt-datamover.service
-    state: absent
-  when: stat_result.stat.exists == True
-  tags:
-    - clean-daemon
+# - name: Remove service file if already present
+#   file:
+#     path: /usr/lib/systemd/system/ovirt-datamover.service
+#     state: absent
+#   when: stat_result.stat.exists == True
+#   tags:
+#     - clean-daemon
 
 
-- name: Remove service file if already present
-  file:
-    path: /usr/lib/systemd/system/ovirt-datamover.service
-    state: absent
-  when: stat_result.stat.exists == True
-  tags:
-    - clean-daemon
+# - name: Remove service file if already present
+#   file:
+#     path: /usr/lib/systemd/system/ovirt-datamover.service
+#     state: absent
+#   when: stat_result.stat.exists == True
+#   tags:
+#     - clean-daemon
+
+
+# - name: Remove service file if already present
+#   file:
+#     path: /usr/lib/systemd/system/ovirt-datamover.service
+#     state: absent
+#   when: stat_result.stat.exists == True
+#   tags:
+#     - clean-daemon
 
   
-- name: Remove original service file if already present
-  file:
-    path: /usr/lib/systemd/system/ovirt-datamover-original.service
-    state: absent
-  when: stat_result.stat.exists == True
-  tags: clean-daemon
+# - name: Remove original service file if already present
+#   file:
+#     path: /usr/lib/systemd/system/ovirt-datamover-original.service
+#     state: absent
+#   when: stat_result.stat.exists == True
+#   tags: clean-daemon
 
 - name: Copy the datamover service file
   copy:
@@ -513,7 +528,7 @@
   shell: source /opt/ovirt-imageio/virtenv/bin/activate
   tags: daemon
 
-- name: Remove service file if already present
+- name: Remove celery service file if already present
   file:
     path: /usr/lib/systemd/system/ovirt_celery.service
     state: absent
@@ -544,7 +559,6 @@
     state: started
   tags: 
     - daemon
-    - clean-daemon
 
 - name: Start ovirt-celery Service
   service:
@@ -575,6 +589,18 @@
     dest: /etc/fstab
   tags: clean-daemon
 
+# clean-daemon remove datamover service file, celery,datamover.conf, ovirt-datamover directory
+- name: Remove datamover-service,celery, datamover.conf files while clean-daemon
+  file:
+    path: '{{ item }}'
+    state: absent
+  with_items:
+     - /usr/lib/systemd/system/ovirt-datamover.service
+     - /usr/lib/systemd/system/ovirt_celery.service
+     - /etc/ovirt-datamover/datamover.conf
+     - /etc/ovirt-datamover
+  tags: clean-daemon
+
 
 # proxy deployment
 
@@ -585,8 +611,40 @@
     key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
   tags: proxy
 
+- name: Check if trilio-plugin-resources directory exists
+  stat:
+    path: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
+  register: ui_status
+  tags:
+     - proxy
+     - clean-proxy
+
+- name: Remove directory trilio-plugin-resources if present
+  file:
+    state: absent
+    path: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
+  when: ui_status.stat.exists
+  tags:
+     - proxy
+     - clean-proxy
 
 
+- name: Check if trilio-plugin.json file exists
+  stat:
+    path: /usr/share/ovirt-engine/ui-plugins/trilio-plugin.json
+  register: file_status
+  tags:
+     - proxy
+     - clean-proxy
+
+- name: Remove trilio-plugin.json file if exists
+  file:
+    state: absent
+    path: /usr/share/ovirt-engine/ui-plugins/trilio-plugin.json
+  when: file_status.stat.exists
+  tags:
+     - proxy
+     - clean-proxy
 
 - name: create directory trilio-plugin-resources
   file:
@@ -594,15 +652,12 @@
     state: directory
   tags: proxy
 
-
-
 - name: copy trilio-plugin-resources
   copy:
     src: /opt/stack/rhvgui-resources/trilio-plugin-resources/
     dest: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
     directory_mode: yes
   tags: proxy
-
 
 - name: copy json file
   copy:
