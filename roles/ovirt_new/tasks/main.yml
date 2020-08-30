@@ -20,7 +20,10 @@
 - name: check daemon version
   command: yum info ovirt-imageio-daemon
   register: daemon_version
-  tags: daemon
+  tags: 
+    - daemon
+    - clean-daemon 
+
  
 - name: Check if fury.repo file exixts
   stat:
@@ -549,7 +552,6 @@
     state: started
   tags: 
     - daemon
-    - clean-daemon
 
 - name: Start ovirt-celery Service
   service:
