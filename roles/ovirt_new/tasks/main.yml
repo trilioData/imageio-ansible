@@ -111,8 +111,15 @@
   tags: daemon
 
 - name: Activate 5000 port in firewall
-  shell: firewall-cmd --zone=public --add-port=5000/tcp
+  firewalld:
+    port: 5000/tcp
+    permanent: yes
+    state: enabled
   tags: daemon
+
+# - name: Activate 5000 port in firewall
+#   shell: firewall-cmd --zone=public --add-port=5000/tcp
+#   tags: daemon
 
 - name: Stopping playbook execution as redis in not installed
   fail: msg="Please install redis" 
