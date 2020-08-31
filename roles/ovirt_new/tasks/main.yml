@@ -70,7 +70,7 @@
 
 - name: Install rpm from Gemfury
   shell: dnf -y install ovirt-imageio_1.6
-  when: daemon_version.stdout | regex_search('2.0.3')
+  when: daemon_version.stdout | regex_search('1.6|2.0')
   tags:
     - daemon
 
@@ -112,10 +112,32 @@
 
 - name: Activate 5000 port in firewall
   firewalld:
+    zone: public
     port: 5000/tcp
     permanent: yes
     state: enabled
   tags: daemon
+
+- name: reload service firewalld
+  systemd:
+    name: firewalld
+    state: reloaded
+  tags: daemon
+
+- name: Deactivate 5000 port in firewall in clean-daemon
+  firewalld:
+    zone: public
+    port: 5000/tcp
+    permanent: yes
+    state: disabled
+  tags: clean-daemon
+
+- name: reload service firewalld
+  systemd:
+    name: firewalld
+    state: reloaded
+  tags: clean-daemon
+
 
 # - name: Activate 5000 port in firewall
 #   shell: firewall-cmd --zone=public --add-port=5000/tcp
