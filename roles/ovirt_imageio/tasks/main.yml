@@ -84,9 +84,9 @@
     - clean-proxy
 
 
-- name: Install rpm from Gemfury
+- name: Install rpm from Gemfury on RHV host
   shell: yum -y install ovirt-imageio_1.5
-  when: daemon_version.stdout | regex_search('1.5.3')
+  when: daemon_version.stdout | regex_search('1.5')
   tags:
     - daemon
 
@@ -97,9 +97,9 @@
   register: proxy_version
   tags: proxy
  
-- name: Install rpm from Gemfury
+- name: Install rpm from Gemfury on RHV manager
   shell: yum -y install ovirt-imageio_1.5
-  when: proxy_version.stdout | regex_search('1.5.3')
+  when: proxy_version.stdout | regex_search('1.5')
   tags:
     - proxy
 
