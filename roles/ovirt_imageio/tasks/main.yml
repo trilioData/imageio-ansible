@@ -359,6 +359,12 @@
   register: fqdn
   tags: daemon
 
+- name: Removing existing host entry from /etc/hosts before adding new
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ host_ip }}'
+    state: absent
+  tags: daemon
 
 - name: Adding fqdn value to /etc/hosts of TVM
   lineinfile:
