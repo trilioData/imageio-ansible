@@ -271,21 +271,21 @@
   when: test_grep.stdout == ""
   tags: daemon
 
-- name: Check if ovirt-datamover directory exists
+- name: Check if trilio-datamover directory exists
   stat:
-    path: /etc/ovirt-datamover
+    path: /etc/trilio-datamover
   register: my_folder
   tags: daemon
  
 - name: echo if directory already existed
   debug:
-    msg: "the ovirt-datamover directory is already existed"
+    msg: "the trilio-datamover directory is already existed"
   when: my_folder.stat.exists
   tags: daemon
  
-- name: Create ovirt-datamover directory if not exists
+- name: Create trilio-datamover directory if not exists
   file:
-    path: /etc/ovirt-datamover
+    path: /etc/trilio-datamover
     state: directory
     mode: 0755
     group: kvm
@@ -294,7 +294,7 @@
   tags: daemon
 
 - name: Check if datamover.conf exists
-  stat: path=/etc/ovirt-datamover/datamover.conf
+  stat: path=/etc/trilio-datamover/datamover.conf
   register: status
   tags: daemon
 
@@ -304,7 +304,7 @@
 - name: Touch datamover.conf file if does not exist
   file:
     state: touch
-    path: /etc/ovirt-datamover/datamover.conf
+    path: /etc/trilio-datamover/datamover.conf
     owner: vdsm
     group: kvm
     mode: 0755
@@ -313,7 +313,7 @@
 
 - name: Remove mount path from datamover.conf befor daemon config
   ini_file:
-    path: /etc/ovirt-datamover/datamover.conf
+    path: /etc/trilio-datamover/datamover.conf
     section: nfs_config
     state: absent
   tags: daemon
@@ -322,7 +322,7 @@
   lineinfile:
     line: ''
     insertafter: EOF
-    dest: /etc/ovirt-datamover/datamover.conf
+    dest: /etc/trilio-datamover/datamover.conf
   with_items:
   - "\n"
   tags: daemon
@@ -331,37 +331,37 @@
   lineinfile:
     line: "[nfs_config]"
     insertafter: EOF
-    dest: /etc/ovirt-datamover/datamover.conf
+    dest: /etc/trilio-datamover/datamover.conf
   tags: daemon
 
 - name: Append encoded nfs share to file
   lineinfile:
     line: "nfs_share = {{ storage_nfs_export }}"
     insertafter: EOF
-    dest: /etc/ovirt-datamover/datamover.conf
+    dest: /etc/trilio-datamover/datamover.conf
   tags: daemon
 
 - name: Append mount path to file
   lineinfile:
     line: "mount_path = {{ mount_path }}"
     insertafter: EOF
-    dest: /etc/ovirt-datamover/datamover.conf
+    dest: /etc/trilio-datamover/datamover.conf
   tags: daemon
 
 
 - name: Remove mount path from datamover.conf for clean-daemon
   ini_file:
-    path: /etc/ovirt-datamover/datamover.conf
+    path: /etc/trilio-datamover/datamover.conf
     section: nfs_config
     state: absent
   tags: clean-daemon
 
-- name: Stop the existing ovirt-datamover service
+- name: Stop the existing trilio-datamover service
   service:
-    name: ovirt-datamover
+    name: trilio-datamover
     state: stopped
   ignore_errors: yes
-  register: ovirt_datamover
+  register: trilio_datamover
   tags: 
     - daemon
     - clean-daemon
@@ -376,9 +376,9 @@
     - clean-daemon
 
 - debug:
-    msg: "ovirt-datamover is stopped"
+    msg: "trilio-datamover is stopped"
   ignore_errors: yes
-  when: ovirt_datamover.state == "stopped"
+  when: trilio_datamover.state == "stopped"
   tags: daemon
 
 - name: Add controller key to authorized_keys
@@ -451,97 +451,27 @@
     recurse: yes
   tags: daemon
 
-- name: Check if ovirt-datamover.service file exists
+- name: Check if trilio-datamover.service file exists
   stat:
-    path: /usr/lib/systemd/system/ovirt-datamover.service
+    path: /usr/lib/systemd/system/trilio-datamover.service
   register: datamover_status
   tags:
      - daemon
      - clean-daemon
 
-- name: Remove ovirt-datamover.service file if exists
+- name: Remove trilio-datamover.service file if exists
   file:
     state: absent
-    path: /usr/lib/systemd/system/ovirt-datamover.service
+    path: /usr/lib/systemd/system/trilio-datamover.service
   when: datamover_status.stat.exists
   tags:
      - daemon
      - clean-daemon
 
-# - name: Check if Daemon was already configured.
-#   stat:
-#     path: /usr/lib/systemd/system/ovirt-datamover-original.service
-#   register: stat_result
-#   tags: 
-#     - daemon
-#     - clean-daemon
-  
-
-# - name: Rename existing ovirt-datamover service file to original before replacing
-#   copy:
-#     src: /usr/lib/systemd/system/ovirt-datamover.service
-#     dest: /usr/lib/systemd/system/ovirt-datamover-original.service
-#     remote_src: yes
-#   become: true
-#   when: stat_result.stat.exists == True
-#   tags: daemon
-
-# - name: Remove service file if already present
-#   file:
-#     path: /usr/lib/systemd/system/ovirt-datamover.service
-#     state: absent
-#   when: stat_result.stat.exists == True
-#   tags: 
-#     - daemon
-
-# - name: Replace file with original contents
-#   copy:
-#     src: /usr/lib/systemd/system/ovirt-datamover-original.service
-#     dest: /usr/lib/systemd/system/ovirt-datamover.service
-#     remote_src: yes
-#   become: true
-#   when: stat_result.stat.exists == True
-#   tags: clean-daemon
-
-
-# - name: Remove service file if already present
-#   file:
-#     path: /usr/lib/systemd/system/ovirt-datamover.service
-#     state: absent
-#   when: stat_result.stat.exists == True
-#   tags:
-#     - clean-daemon
-
-
-# - name: Remove service file if already present
-#   file:
-#     path: /usr/lib/systemd/system/ovirt-datamover.service
-#     state: absent
-#   when: stat_result.stat.exists == True
-#   tags:
-#     - clean-daemon
-
-
-# - name: Remove service file if already present
-#   file:
-#     path: /usr/lib/systemd/system/ovirt-datamover.service
-#     state: absent
-#   when: stat_result.stat.exists == True
-#   tags:
-#     - clean-daemon
-
-  
-# - name: Remove original service file if already present
-#   file:
-#     path: /usr/lib/systemd/system/ovirt-datamover-original.service
-#     state: absent
-#   when: stat_result.stat.exists == True
-#   tags: clean-daemon
-
 - name: Copy the datamover service file
   copy:
-    src: /opt/ovirt-imageio/service-files/ovirt-datamover.service
-    dest: /usr/lib/systemd/system/ovirt-datamover.service
+    src: /opt/ovirt-imageio/service-files/trilio-datamover.service
+    dest: /usr/lib/systemd/system/trilio-datamover.service
     remote_src: yes
     mode: u=rw,g=r,o=r
   tags: daemon
@@ -574,9 +504,9 @@
     - daemon
     - clean-daemon
 
-- name: Start ovirt-datamover Service
+- name: Start trilio-datamover Service
   service:
-    name: ovirt-datamover
+    name: trilio-datamover
     enabled: yes
     state: started
   tags: 
@@ -611,16 +541,16 @@
     dest: /etc/fstab
   tags: clean-daemon
 
-# clean-daemon remove datamover service file, celery,datamover.conf, ovirt-datamover directory
+# clean-daemon remove datamover service file, celery,datamover.conf, trilio-datamover directory
 - name: Remove datamover-service,celery, datamover.conf files while clean-daemon
   file:
     path: '{{ item }}'
     state: absent
   with_items:
-     - /usr/lib/systemd/system/ovirt-datamover.service
+     - /usr/lib/systemd/system/trilio-datamover.service
      - /usr/lib/systemd/system/ovirt_celery.service
-     - /etc/ovirt-datamover/datamover.conf
-     - /etc/ovirt-datamover
+     - /etc/trilio-datamover/datamover.conf
+     - /etc/trilio-datamover
   tags: clean-daemon
 
 
