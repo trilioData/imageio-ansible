@@ -198,40 +198,40 @@
   tags: daemon
 
 
-- name: Generating workload using UUID
-  set_fact:
-    workload_id: "{{ 1000 | random | to_uuid | lower }}"
-    snapshot_id: "{{ 1000 | random | to_uuid | lower }}"
-    vm: "{{ 1000 | random | to_uuid | lower }}"
-    vm_resource: "{{ 1000 | random | to_uuid | lower }}"
-  tags: daemon
+# - name: Generating workload using UUID
+#   set_fact:
+#     workload_id: "{{ 1000 | random | to_uuid | lower }}"
+#     snapshot_id: "{{ 1000 | random | to_uuid | lower }}"
+#     vm: "{{ 1000 | random | to_uuid | lower }}"
+#     vm_resource: "{{ 1000 | random | to_uuid | lower }}"
+#   tags: daemon
 
 
-- name: Checking NFS read/write permissions for VDSM user
-  file:
-    path: "{{ mount_path }}/workload_{{ workload_id }}/snapshot_{{ snapshot_id}}/vm_{{ vm }}/vm_resource_{{ vm_resource }}"
-    state: file
-    owner: vdsm
-    group: kvm
-    state: directory
-  tags: daemon
+# - name: Checking NFS read/write permissions for VDSM user
+#   file:
+#     path: "{{ mount_path }}/workload_{{ workload_id }}/snapshot_{{ snapshot_id}}/vm_{{ vm }}/vm_resource_{{ vm_resource }}"
+#     state: file
+#     owner: vdsm
+#     group: kvm
+#     state: directory
+#   tags: daemon
 
 
-- name: Creating test file to check permissions for VDSM user
-  file: 
-    path: "{{ mount_path }}/workload_{{ workload_id }}/snapshot_{{ snapshot_id}}/vm_{{ vm }}/vm_resource_{{ vm_resource }}/test"
-    state: touch
-    owner: vdsm
-    group: kvm
-  tags: daemon
+# - name: Creating test file to check permissions for VDSM user
+#   file: 
+#     path: "{{ mount_path }}/workload_{{ workload_id }}/snapshot_{{ snapshot_id}}/vm_{{ vm }}/vm_resource_{{ vm_resource }}/test"
+#     state: touch
+#     owner: vdsm
+#     group: kvm
+#   tags: daemon
 
-- name: Remove directory struture created to test NFS validation
-  file:
-    path: "{{ mount_path }}/workload_{{ workload_id }}"
-    state: absent
-    owner: vdsm
-    group: kvm
-  tags: daemon
+# - name: Remove directory struture created to test NFS validation
+#   file:
+#     path: "{{ mount_path }}/workload_{{ workload_id }}"
+#     state: absent
+#     owner: vdsm
+#     group: kvm
+#   tags: daemon
 
 - name: Test for vdsm entry in /etc/sudoers 
   shell: grep "^vdsm ALL = NOPASSWD" /etc/sudoers
