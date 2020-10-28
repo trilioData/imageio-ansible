@@ -345,8 +345,8 @@
 
 - name: register target ip
   set_fact:
-    host_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
-  register: host_ip
+    host_ip: "{{ ansible_default_ipv4.address }}"
+  #register: host_ip
   tags: daemon
 
 
