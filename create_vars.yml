@@ -15,10 +15,10 @@
     register: rhvpassword
     tags: proxy
 
-  - name: debug
-    debug:
-      msg: "Password is {{ rhvpassword['content'] | b64decode | regex_findall('rhv_password = (.+)') | first | b64decode}}"
-    tags: proxy
+  # - name: debug
+  #   debug:
+  #     msg: "Password is {{ rhvpassword['content'] | b64decode | regex_findall('rhv_password = (.+)') | first | b64decode}}"
+  #   tags: proxy
 
   - set_fact:
       decode_pass: "{{ rhvpassword['content'] | b64decode | regex_findall('rhv_password = (.+)') | first | b64decode}}"

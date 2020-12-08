@@ -54,22 +54,37 @@
   tags: 
     - daemon
 
-- name: check rpm installation
+- name: check old rpm installation
   shell: rpm -qa ovirt-imageio_1.6
   register: output
   tags:
     - daemon
     - clean-daemon
 
-- name: Remove rpm if alreday installed
+- name: Remove old rpm if alreday installed
   shell: rpm -e ovirt-imageio_1.6
   when: output.stdout | regex_search('ovirt-imageio_1.6')
   tags: 
     - daemon
     - clean-daemon
 
+
+- name: check rpm installation
+  shell: rpm -qa ovirt-imageio_1.7
+  register: output
+  tags:
+    - daemon
+    - clean-daemon
+
+- name: Remove rpm if alreday installed
+  shell: rpm -e ovirt-imageio_1.7
+  when: output.stdout | regex_search('ovirt-imageio_1.7')
+  tags: 
+    - daemon
+    - clean-daemon
+
 - name: Install rpm from Gemfury
-  shell: dnf -y install ovirt-imageio_1.6
+  shell: dnf -y install ovirt-imageio_1.7
   when: daemon_version.stdout | regex_search('1.6|2.0')
   tags:
     - daemon
@@ -139,24 +154,89 @@
   tags: clean-daemon
 
 
-# - name: Activate 5000 port in firewall
-#   shell: firewall-cmd --zone=public --add-port=5000/tcp
-#   tags: daemon
-
 - name: Stopping playbook execution as redis in not installed
   fail: msg="Please install redis" 
   when: redis_status.state == "stopped"
   tags: daemon
-   
+
+- name: copy workloadmgr.conf to host
+  copy:
+    src: /etc/workloadmgr/workloadmgr.conf
+    dest: /etc
+    owner: vdsm
+    group: kvm
+  tags: 
+    - daemon
+    - clean-daemon
+
+- name: read workloadmgr.conf file
+  shell: cat /etc/workloadmgr.conf
+  register: workload_details
+  tags: 
+    - daemon
+    - clean-daemon
+
+
+- name: create workloadmgr directory on host
+  file:
+    path: /etc/workloadmgr
+    state: directory
+    mode: 0755
+    group: kvm
+    owner: vdsm
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: daemon
+
+- name: create directory tvault-object-store
+  file:
+     path: /var/log/tvault-object-store
+     state: directory
+     mode: 0755
+     group: kvm
+     owner: vdsm
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: daemon
+
+- name: create directory triliovault
+  file:
+     path: /var/triliovault
+     state: directory
+     mode: 0755
+     group: kvm
+     owner: vdsm
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: daemon
+
+
+- name: copy vault.conf inside host
+  copy:
+    src: /etc/workloadmgr/vault.conf
+    dest: /etc/workloadmgr
+    group: kvm
+    owner: vdsm
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: daemon
+
+- name: change lines in vault.conf
+  lineinfile:
+    path: /etc/workloadmgr/vault.conf
+    regexp: helper_command = sudo /usr/local/bin/privsep-helper
+    line: helper_command = sudo /opt/ovirt-imageio/daemon/datamover/venv/bin/privsep-helper
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: daemon
+
+
 - name: do the encode
   shell: echo {{ storage_nfs_export | b64encode }}
   register: encoded_nfs_share
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: 
     - daemon
     - clean-daemon
 
 - set_fact:
     encoded_nfs_share: "{{ encoded_nfs_share.stdout }}"
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: 
     - daemon
     - clean-daemon
@@ -164,6 +244,7 @@
 - name: Creating mount path
   set_fact:
     mount_path: "{{ vault_data_directory }}/{{ encoded_nfs_share }}"
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: 
     - daemon
     - clean-daemon
@@ -173,25 +254,31 @@
   register: mount_state
   failed_when: False
   changed_when: False
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
-- name: debug
-  when: mount_state.stdout == "{{ mount_path }} is a mountpoint"
-  debug:
-    msg: "{{ mount_path }} is a mountpoint"
-  tags: daemon
+# - name: debug
+#   when: >
+#      mount_state.stdout == "{{ mount_path }} is a mountpoint" and
+#      workload_details.stdout | regex_search('vault_storage_type = nfs')
+#   debug:
+#     msg: "{{ mount_path }} is a mountpoint"
+#   tags: daemon
 
-- name: debug
-  when: mount_state.stdout == "{{ mount_path }} is not a mountpoint"
-  debug:
-    msg: "{{ mount_path }} is not a mountpoint"
-  tags: daemon
+# - name: debug
+#   when: > 
+#     mount_state.stdout == "{{ mount_path }} is not a mountpoint" and
+#     workload_details.stdout | regex_search('vault_storage_type = nfs')
+#   debug:
+#     msg: "{{ mount_path }} is not a mountpoint"
+#   tags: daemon
 
 - name: Unmounting existing mount path
   mount: 
     path: "{{ mount_path }}"
     state: unmounted
-  when: mount_state.stdout == "{{ mount_path }} is a mountpoint"
+  when: 
+    workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
 - name: Creating mount path directory if it does not exist
@@ -201,47 +288,14 @@
     owner: vdsm
     group: kvm
     recurse: yes
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
   
 - name: Mount NFS volume
   command: mount -t nfs -o rw,nolock,soft,intr,timeo=180,vers=3 {{ storage_nfs_export }} {{ mount_path }}
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
-
-# - name: Generating workload using UUID
-#   set_fact:
-#     workload_id: "{{ 1000 | random | to_uuid | lower }}"
-#     snapshot_id: "{{ 1000 | random | to_uuid | lower }}"
-#     vm: "{{ 1000 | random | to_uuid | lower }}"
-#     vm_resource: "{{ 1000 | random | to_uuid | lower }}"
-#   tags: daemon
-
-
-# - name: Checking NFS read/write permissions for VDSM user
-#   file:
-#     path: "{{ mount_path }}/workload_{{ workload_id }}/snapshot_{{ snapshot_id}}/vm_{{ vm }}/vm_resource_{{ vm_resource }}"
-#     state: file
-#     owner: vdsm
-#     group: kvm
-#     state: directory
-#   tags: daemon
-
-
-# - name: Creating test file to check permissions for VDSM user
-#   file: 
-#     path: "{{ mount_path }}/workload_{{ workload_id }}/snapshot_{{ snapshot_id}}/vm_{{ vm }}/vm_resource_{{ vm_resource }}/test"
-#     state: touch
-#     owner: vdsm
-#     group: kvm
-#   tags: daemon
-
-# - name: Remove directory struture created to test NFS validation
-#   file:
-#     path: "{{ mount_path }}/workload_{{ workload_id }}"
-#     state: absent
-#     owner: vdsm
-#     group: kvm
-#   tags: daemon
 
 - name: Test for vdsm entry in /etc/sudoers 
   shell: grep "^vdsm ALL = NOPASSWD" /etc/sudoers
@@ -260,6 +314,7 @@
 - name: Test for NFS mount entry in fstab 
   shell: grep "^{{ storage_nfs_export }} {{ mount_path }}" /etc/fstab
   register: test_grep
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   ignore_errors: yes
   tags: daemon
 
@@ -268,7 +323,8 @@
     line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180,vers=3 36 36"
     insertafter: EOF
     dest: /etc/fstab
-  when: test_grep.stdout == ""
+  when:
+    workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
 - name: Check if trilio-datamover directory exists
@@ -296,10 +352,11 @@
 - name: Check if datamover.conf exists
   stat: path=/etc/trilio-datamover/datamover.conf
   register: status
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
-- debug: var=status
-  tags: daemon
+# - debug: var=status
+#   tags: daemon
 
 - name: Touch datamover.conf file if does not exist
   file:
@@ -308,7 +365,8 @@
     owner: vdsm
     group: kvm
     mode: 0755
-  when: status.stat.exists == false
+  when: 
+    workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
 - name: Remove mount path from datamover.conf befor daemon config
@@ -316,6 +374,7 @@
     path: /etc/trilio-datamover/datamover.conf
     section: nfs_config
     state: absent
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
 - name: Append empty line to datamover config file
@@ -325,6 +384,7 @@
     dest: /etc/trilio-datamover/datamover.conf
   with_items:
   - "\n"
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
 - name: Append encoded nfs share to datamover conf file
@@ -332,6 +392,7 @@
     line: "[nfs_config]"
     insertafter: EOF
     dest: /etc/trilio-datamover/datamover.conf
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
 - name: Append encoded nfs share to file
@@ -339,6 +400,7 @@
     line: "nfs_share = {{ storage_nfs_export }}"
     insertafter: EOF
     dest: /etc/trilio-datamover/datamover.conf
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
 - name: Append mount path to file
@@ -346,6 +408,7 @@
     line: "mount_path = {{ mount_path }}"
     insertafter: EOF
     dest: /etc/trilio-datamover/datamover.conf
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: daemon
 
 
@@ -354,6 +417,7 @@
     path: /etc/trilio-datamover/datamover.conf
     section: nfs_config
     state: absent
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: clean-daemon
 
 - name: Stop the existing trilio-datamover service
@@ -371,6 +435,17 @@
     name: ovirt_celery
     state: stopped
   ignore_errors: yes
+  tags: 
+    - daemon
+    - clean-daemon
+  
+  
+- name: Stop tvault-object-store-service if already running
+  service:
+    name: tvault-object-store
+    state: stopped
+  ignore_errors: yes
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
   tags: 
     - daemon
     - clean-daemon
@@ -451,6 +526,17 @@
     recurse: yes
   tags: daemon
 
+- name: copy object_store_mount.py file
+  copy:
+    src: /opt/ovirt-imageio/daemon/datamover/object_store_mount.py
+    dest: /etc/workloadmgr
+    remote_src: yes
+    mode: u=rw,g=r,o=r
+    owner: vdsm
+    group: kvm
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: daemon
+
 - name: Check if trilio-datamover.service file exists
   stat:
     path: /usr/lib/systemd/system/trilio-datamover.service
@@ -475,6 +561,37 @@
     remote_src: yes
     mode: u=rw,g=r,o=r
   tags: daemon
+
+# - name: check if tvault-object-store service file exists
+#   stat:
+#     path: /usr/lib/systemd/system/tvault-object-store.service
+#   register: tvault_status
+#   when: >
+#     workload_details.stdout | regex_search('vault_storage_type = s3') and
+#     tvault_status.stat.exists
+#   tags:
+#     - daemon
+
+# - name: Remove tvault-service  file if present
+#   file:
+#     state: absent
+#     path: /usr/lib/systemd/system/tvault-object-store.service
+#   when: >
+#     workload_details.stdout | regex_search('vault_storage_type = s3') and
+#     tvault_status.stat.exists
+#   tags: 
+#     - daemon
+#     - clean-daemon
+
+- name: copy tvault-object-store service file
+  copy:
+    src: /opt/ovirt-imageio/service-files/tvault-object-store.service
+    dest: /usr/lib/systemd/system/tvault-object-store.service
+    remote_src: yes
+    mode: u=rw,g=r,o=r
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: daemon
+
 
 - name: Activate the celery virtualenv
   shell: source /opt/ovirt-imageio/virtenv/bin/activate
@@ -520,25 +637,29 @@
   tags: 
     - daemon
 
-# - name: Start Celery worker service
-#   command: systemctl start ovirt_celery
-#   tags: daemon
+- name: Start tvault-object-store service
+  service:
+    name: tvault-object-store
+    enabled: yes
+    state: started
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: daemon
 
-# - name: Enable Celery worker service
-#   command: systemctl enable ovirt_celery
-#   tags: daemon
 
 - name: Unmounting existing mount path
   mount: 
     path: "{{ mount_path }}"
     state: unmounted
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: clean-daemon
+
 
 - name: Remove NFS mount entry in fstab
   lineinfile:
     line: "{{ storage_nfs_export }} {{ mount_path }} nfs rw,nolock,soft,intr,timeo=180,vers=3 36 36"
     state: absent
     dest: /etc/fstab
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: clean-daemon
 
 # clean-daemon remove datamover service file, celery,datamover.conf, trilio-datamover directory
@@ -553,7 +674,23 @@
      - /etc/trilio-datamover
   tags: clean-daemon
 
+- name: remove service files created for tvault-object-store
+  file:
+    path: '{{ item }}'
+    state: absent
+  with_items:
+     - /usr/lib/systemd/system/tvault-object-store
+     - /etc/workloadmgr/vault.conf
+     - /etc/workloadmgr/object_store_mount.py
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: clean-daemon
 
+- name: clean var/triliovault-mounts directory for nfs
+  file:
+    path: /var/triliovault-mounts
+    state: absent
+  when: workload_details.stdout | regex_search('vault_storage_type = nfs')
+  tags: clean-daemon
 # proxy deployment
 
 - name: Add controller key to authorized_keys
@@ -644,7 +781,3 @@
   tags: proxy
 
 
-
-
-
-  
