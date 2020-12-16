@@ -70,7 +70,7 @@
 
 - name: Install rpm from Gemfury
   shell: dnf -y install ovirt-imageio_1.6
-  when: daemon_version.stdout | regex_search('1.6|2.0')
+  #when: daemon_version.stdout | regex_search('1.6|2.0')
   tags:
     - daemon
 
