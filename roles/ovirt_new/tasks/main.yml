@@ -85,7 +85,7 @@
 
 - name: Install rpm from Gemfury
   shell: dnf -y install ovirt-imageio_1.7
-  when: daemon_version.stdout | regex_search('1.6|2.0')
+  #when: daemon_version.stdout | regex_search('1.6|2.0')
   tags:
     - daemon
 
@@ -679,7 +679,7 @@
     path: '{{ item }}'
     state: absent
   with_items:
-     - /usr/lib/systemd/system/tvault-object-store
+     - /usr/lib/systemd/system/tvault-object-store.service
      - /etc/workloadmgr/vault.conf
      - /etc/workloadmgr/object_store_mount.py
   when: workload_details.stdout | regex_search('vault_storage_type = s3')
@@ -691,6 +691,13 @@
     state: absent
   when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: clean-daemon
+
+- name: remove workloadmgr.conf file
+  file:
+    path: /etc/workloadmgr.conf
+    state: absent
+  tags: clean-daemon
+
 # proxy deployment
 
 - name: Add controller key to authorized_keys
