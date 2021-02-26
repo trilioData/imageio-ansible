@@ -788,3 +788,119 @@
   tags: proxy
 
 
+# create_vars
+
+- name: copy file ansible
+  copy:
+    src: /etc/workloadmgr/workloadmgr.conf
+    dest: /etc
+  tags: proxy
+
+
+- name: extract password from file
+  slurp:
+    src: /etc/workloadmgr.conf
+  register: rhvpassword
+  tags: proxy
+
+  # - name: debug
+  #   debug:
+  #     msg: "Password is {{ rhvpassword['content'] | b64decode | regex_findall('rhv_password = (.+)') | first | b64decode}}"
+  #   tags: proxy
+
+- set_fact:
+    decode_pass: "{{ rhvpassword['content'] | b64decode | regex_findall('rhv_password = (.+)') | first | b64decode}}"
+  tags: proxy
+
+
+- name: create vars.yml on manager
+  copy:
+    dest: "/etc/vars.yml"
+    content: |
+        ---
+  tags: proxy
+
+
+- name: blockinfile
+  blockinfile:
+    dest: "/etc/vars.yml"
+    marker: "## {mark} added by ansible"
+    block: |
+        rhv_engine_fqdn: 
+        rhv_password: 
+        rhv_username:
+    state: present
+  tags: proxy
+
+
+- name: copy password 
+  lineinfile:
+    dest: "/etc/vars.yml"
+    regexp: "rhv_password"
+    line: "rhv_password: {{ decode_pass }}"
+  tags: proxy
+
+  
+- name: check fqdn
+  shell: hostname
+  register: fqdn
+  tags: proxy
+
+- name: adding fqdn
+  lineinfile:
+    dest: "/etc/vars.yml"
+    regexp: "rhv_engine_fqdn"
+    line: "rhv_engine_fqdn: {{ fqdn.stdout }}"
+  tags: proxy
+
+- name: copy rhv username
+  slurp:
+    src: /etc/workloadmgr.conf
+  register: rhvusername
+  tags: proxy
+
+  
+
+- name: grep username using cat
+  shell: cat /etc/workloadmgr.conf | grep -e rhv_username
+  register: username
+  tags: proxy
+
+- name: print msg
+  debug: 
+    msg: "username: {{ username.stdout }}"
+  tags: proxy
+
+- set_fact:
+    my_user: "{{ username.stdout | regex_findall('rhv_username = (.+)', '\\1') | first }}"
+  tags: proxy
+   
+- name: print user
+  debug:
+    msg: "new: {{ my_user }}"
+  tags: proxy
+
+#- name: copy username to file
+#  copy:
+#    content: "{{ username.stdout }}"
+#    dest: /etc/password.conf
+#  tags: proxy
+
+
+- name: adding username
+  lineinfile:
+    dest: "/etc/vars.yml"
+    regexp: "rhv_username"
+    line: "rhv_username: {{ my_user }}"
+  tags: proxy
+ 
+- name: fetch vars.yml on tvm
+  fetch:
+    src: /etc/vars.yml
+    dest: /opt/stack/imageio-ansible/roles/ovirt_new/tasks/
+    flat: yes
+  tags: proxy
+
+- import_tasks: create_roles.yml
+  tags:
+    - proxy
