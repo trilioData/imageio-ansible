@@ -358,6 +358,24 @@
 # - debug: var=status
 #   tags: daemon
 
+- name: Remove datamover.conf file if exists
+  file:
+    path: /etc/trilio-datamover/datamover.conf
+    state: absent
+  tags: daemon
+
+- name: Add datamover.conf for s3
+  copy:
+    dest: "/etc/trilio-datamover/datamover.conf"
+    content: |
+      [s3_config]
+      mount_path = /var/triliovault-mounts
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: 
+    - daemon
+  
+
+
 - name: Touch datamover.conf file if does not exist
   file:
     state: touch
@@ -821,7 +839,7 @@
   tags: proxy
 
 
-- name: blockinfile
+- name: Add fields to vars.yml on TVR
   blockinfile:
     dest: "/etc/vars.yml"
     marker: "## {mark} added by ansible"
