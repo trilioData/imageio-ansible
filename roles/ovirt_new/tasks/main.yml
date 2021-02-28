@@ -920,5 +920,8 @@
   tags: proxy
 
 - import_tasks: create_roles.yml
-  tags:
-    - proxy
+  tags: proxy
+
+- import_tasks: clean_roles.yml
+  tags: clean-proxy
+

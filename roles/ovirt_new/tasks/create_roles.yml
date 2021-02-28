@@ -11,7 +11,7 @@
     ca_file: /etc/pki/ovirt-engine/ca.pem
   tags: 
     - proxy
-    - clean-proxy
+    #- clean-proxy
     
 - name: create trilioBackup role with login permissions
   ovirt_role:
@@ -81,30 +81,30 @@
       #- edit_network
   tags: proxy
 
-- name: Remove TrilioBackup role with clean-proxy
-  ovirt_role:
-    auth: "{{ ovirt_auth }}"
-    name: TrilioBackup
-    state: absent
-  tags: clean-proxy
+# - name: Remove TrilioBackup role with clean-proxy
+#   ovirt_role:
+#     auth: "{{ ovirt_auth }}"
+#     name: TrilioBackup
+#     state: absent
+#   tags: clean-proxy
 
-- name: Remove TrilioMonitor role with clean-proxy
-  ovirt_role:
-    auth: "{{ ovirt_auth }}"
-    name: TrilioMonitor
-    state: absent
-  tags: clean-proxy
+# - name: Remove TrilioMonitor role with clean-proxy
+#   ovirt_role:
+#     auth: "{{ ovirt_auth }}"
+#     name: TrilioMonitor
+#     state: absent
+#   tags: clean-proxy
 
-- name: Remove TrilioRestore role with clean-proxy
-  ovirt_role:
-    auth: "{{ ovirt_auth }}"
-    name: TrilioRestore
-    state: absent
-  tags: clean-proxy
+# - name: Remove TrilioRestore role with clean-proxy
+#   ovirt_role:
+#     auth: "{{ ovirt_auth }}"
+#     name: TrilioRestore
+#     state: absent
+#   tags: clean-proxy
 
-- name: Remove TrilioBackupAdministrator role with clean-proxy
-  ovirt_role:
-    auth: "{{ ovirt_auth }}"
-    name: TrilioBackupAdministrator
-    state: absent
-  tags: clean-proxy
+# - name: Remove TrilioBackupAdministrator role with clean-proxy
+#   ovirt_role:
+#     auth: "{{ ovirt_auth }}"
+#     name: TrilioBackupAdministrator
+#     state: absent
+#   tags: clean-proxy
