@@ -1,0 +1,41 @@
+---
+- name: include_vars
+  include_vars: vars.yml
+  tags: clean-proxy
+
+- name: sso token
+  ovirt_auth:
+    hostname: "{{ rhv_engine_fqdn }}"
+    username: "{{ rhv_username }}"
+    password: "{{ rhv_password }}"
+    ca_file: /etc/pki/ovirt-engine/ca.pem
+  tags: 
+    - clean-proxy
+
+- name: Remove TrilioBackup role with clean-proxy
+  ovirt_role:
+    auth: "{{ ovirt_auth }}"
+    name: TrilioBackup
+    state: absent
+  tags: clean-proxy
+
+- name: Remove TrilioMonitor role with clean-proxy
+  ovirt_role:
+    auth: "{{ ovirt_auth }}"
+    name: TrilioMonitor
+    state: absent
+  tags: clean-proxy
+
+- name: Remove TrilioRestore role with clean-proxy
+  ovirt_role:
+    auth: "{{ ovirt_auth }}"
+    name: TrilioRestore
+    state: absent
+  tags: clean-proxy
+
+- name: Remove TrilioBackupAdministrator role with clean-proxy
+  ovirt_role:
+    auth: "{{ ovirt_auth }}"
+    name: TrilioBackupAdministrator
+    state: absent
+  tags: clean-proxy
