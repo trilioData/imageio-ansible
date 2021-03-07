@@ -703,12 +703,50 @@
   when: workload_details.stdout | regex_search('vault_storage_type = s3')
   tags: clean-daemon
 
-- name: clean var/triliovault-mounts directory for nfs
-  file:
-    path: /var/triliovault-mounts
-    state: absent
+- name: Remove trilio-vault mount directory
+  shell: rm -rf triliovault-mounts
+  args:
+    chdir: /var/
   when: workload_details.stdout | regex_search('vault_storage_type = nfs')
   tags: clean-daemon
+  
+# clean S3 directory from host
+- name: Unmount triliovault directory
+  shell: umount tmpfs
+  args:
+    chdir: /var/triliovault
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: clean-daemon
+
+- name: Unmount triliovault-mounts directory
+   shell: umount triliovault-mounts
+  args:
+    chdir: /var/
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: clean-daemon
+
+- name: Remove triliovault directory
+  shell: rm -rf triliovault
+  args:
+    chdir: /var/
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: clean-daemon
+
+- name: Remove triliovault-mounts directory
+  shell: rm -rf triliovault-mounts
+  args:
+    chdir: /var/
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  tags: clean-daemon
+
+
+
+# - name: clean var/triliovault-mounts directory for nfs
+#   file:
+#     path: /var/triliovault-mounts
+#     state: absent
+#   when: workload_details.stdout | regex_search('vault_storage_type = nfs')
+#   tags: clean-daemon
 
 - name: remove workloadmgr.conf file
   file:
