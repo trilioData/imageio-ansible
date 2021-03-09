@@ -719,7 +719,7 @@
   tags: clean-daemon
 
 - name: Unmount triliovault-mounts directory
-   shell: umount triliovault-mounts
+  shell: umount triliovault-mounts
   args:
     chdir: /var/
   when: workload_details.stdout | regex_search('vault_storage_type = s3')
