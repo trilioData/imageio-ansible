@@ -48,7 +48,7 @@
     lineinfile:
       dest: "/etc/vars.yml"
       regexp: "rhv_password"
-      line: "rhv_password: {{ decode_pass }}"
+      line: "rhv_password: {{ decode_pass | quote }} "
     tags: proxy
 
   #- name: copy password to file

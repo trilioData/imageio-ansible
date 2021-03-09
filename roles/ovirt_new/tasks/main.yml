@@ -526,14 +526,55 @@
     state: absent
   tags: daemon
 
+- name: copy workloadmgr.conf to host
+  copy:
+    src: /etc/tvault-config/tvault-config.conf
+    dest: /etc
+    owner: vdsm
+    group: kvm
+  tags: 
+    - daemon
+
+- name: register floating ip of tvault
+  shell: cat /etc/tvault-config.conf | grep -e floating_ipaddress
+  register: tvault_ip
+  tags: daemon
+
+- name: print tvault ip
+  debug:
+    msg: "tvault_ip: {{ tvault_ip.stdout }}"
+  tags: daemon
+
+- set_fact:
+    tvr_ip: "{{ tvault_ip.stdout | regex_findall('\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b') | first }}"
+  tags: daemon
+
+#- debug:
+#    var: tvr_ip
+#  tags: daemon
 
 - name: Adding fqdn value to /etc/hosts of TVM
   lineinfile:
     path: /etc/hosts
     regexp: '(^\s+{{ target_ip }}([\w=/\-\.\,\_]+)*)\s*$'
     line: "{{ target_ip }} {{ fqdn.stdout }}"
-  delegate_to: 127.0.0.1
+  delegate_to: "{{ tvr_ip }}"
   tags: daemon
+
+- name: Removing to tvault-config.conf from rhv host
+  file:
+    state: absent
+    path: /etc/tvault-config.conf
+  tags: daemon
+
+
+# - name: Adding fqdn value to /etc/hosts of TVM # Commented out this task for Ansible_runner issue
+#   lineinfile:
+#     path: /etc/hosts
+#     regexp: '(^\s+{{ target_ip }}([\w=/\-\.\,\_]+)*)\s*$'
+#     line: "{{ target_ip }} {{ fqdn.stdout }}"
+#   delegate_to: 127.0.0.1
+#   tags: daemon
 
 - name: Create directory to record logs
   file:
@@ -719,7 +760,7 @@
   tags: clean-daemon
 
 - name: Unmount triliovault-mounts directory
-   shell: umount triliovault-mounts
+  shell: umount triliovault-mounts
   args:
     chdir: /var/
   when: workload_details.stdout | regex_search('vault_storage_type = s3')
@@ -893,7 +934,7 @@
   lineinfile:
     dest: "/etc/vars.yml"
     regexp: "rhv_password"
-    line: "rhv_password: {{ decode_pass }}"
+    line: "rhv_password: {{ decode_pass | quote }} "
   tags: proxy
 
   
