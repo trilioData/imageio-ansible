@@ -397,8 +397,8 @@
 - name: Adding fqdn value to /etc/hosts of TVM
   lineinfile:
     path: /etc/hosts
-    regexp: '(^\s+{{ target_ip }}([\w=/\-\.\,\_]+)*)\s*$'
-    line: "{{ target_ip }} {{ fqdn.stdout }}"
+    regexp: '(^\s+{{ host_ip }}([\w=/\-\.\,\_]+)*)\s*$'
+    line: "{{ host_ip }} {{ fqdn.stdout }}"
   delegate_to: "{{ tvr_ip }}"
   tags: daemon
 
@@ -742,8 +742,8 @@
 - name: Adding fqdn value to /etc/hosts of TVM
   lineinfile:
     path: /etc/hosts
-    regexp: '(^\s+{{ target_ip }}([\w=/\-\.\,\_]+)*)\s*$'
-    line: "{{ target_ip }} {{ fqdn.stdout }}"
+    regexp: '(^\s+{{ engine.stdout }}([\w=/\-\.\,\_]+)*)\s*$'
+    line: "{{ engine.stdout }} {{ fqdn.stdout }}"
   delegate_to: "{{ tvr_ip }}"
   tags: proxy
 
