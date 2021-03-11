@@ -1,6 +1,7 @@
 ---
 - name: include_vars
   include_vars: vars.yml
+  no_log: true
   tags: proxy
 
 - name: sso token
