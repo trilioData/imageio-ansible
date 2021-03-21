@@ -1,4 +1,101 @@
 ---
+- name: copy file ansible
+  copy:
+    src: /etc/workloadmgr/workloadmgr.conf
+    dest: /etc
+  tags: clean-proxy
+
+
+- name: extract password from file
+  slurp:
+    src: /etc/workloadmgr.conf
+  register: rhvpassword
+  tags: clean-proxy
+
+  
+- set_fact:
+    decode_pass: "{{ rhvpassword['content'] | b64decode | regex_findall('rhv_password = (.+)') | first | b64decode}}"
+  tags: clean-proxy
+
+
+- name: create vars.yml on manager
+  copy:
+    dest: "/etc/vars.yml"
+    content: |
+        ---
+  tags: clean-proxy
+
+
+- name: Add fields to vars.yml on TVR
+  blockinfile:
+    dest: "/etc/vars.yml"
+    marker: "## {mark} added by ansible"
+    block: |
+        rhv_engine_fqdn: 
+        rhv_password: 
+        rhv_username:
+    state: present
+  tags: clean-proxy
+
+
+- name: copy password 
+  lineinfile:
+    dest: "/etc/vars.yml"
+    regexp: "rhv_password"
+    line: "rhv_password: {{ decode_pass | quote }} "
+  tags: clean-proxy
+
+  
+- name: check fqdn
+  shell: hostname
+  register: fqdn
+  tags: clean-proxy
+
+- name: adding fqdn
+  lineinfile:
+    dest: "/etc/vars.yml"
+    regexp: "rhv_engine_fqdn"
+    line: "rhv_engine_fqdn: {{ fqdn.stdout }}"
+  tags: clean-proxy
+
+- name: copy rhv username
+  slurp:
+    src: /etc/workloadmgr.conf
+  register: rhvusername
+  tags: clean-proxy
+
+  
+
+- name: grep username using cat
+  shell: cat /etc/workloadmgr.conf | grep -e rhv_username
+  register: username
+  tags: clean-proxy
+
+- name: print msg
+  debug: 
+    msg: "username: {{ username.stdout }}"
+  tags: clean-proxy
+
+- set_fact:
+    my_user: "{{ username.stdout | regex_findall('rhv_username = (.+)', '\\1') | first }}"
+  tags: clean-proxy
+   
+
+- name: adding username
+  lineinfile:
+    dest: "/etc/vars.yml"
+    regexp: "rhv_username"
+    line: "rhv_username: {{ my_user }}"
+  tags: clean-proxy
+ 
+- name: fetch vars.yml on tvm
+  fetch:
+    src: /etc/vars.yml
+    dest: /opt/stack/imageio-ansible/roles/ovirt_new/tasks/
+    flat: yes
+  tags: clean-proxy
+
+
 - name: include_vars
   include_vars: vars.yml
   tags: clean-proxy
