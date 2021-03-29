@@ -165,6 +165,7 @@
     dest: /etc
     owner: vdsm
     group: kvm
+  no_log: true
   tags: 
     - daemon
     - clean-daemon
@@ -172,6 +173,7 @@
 - name: read workloadmgr.conf file
   shell: cat /etc/workloadmgr.conf
   register: workload_details
+  no_log: true
   tags: 
     - daemon
     - clean-daemon
@@ -538,6 +540,7 @@
 
 - name: register floating ip of tvault
   shell: cat /etc/tvault-config.conf | grep -e floating_ipaddress
+  no_log: true
   register: tvault_ip
   tags: daemon
 
@@ -908,6 +911,7 @@
 - name: extract password from file
   slurp:
     src: /etc/workloadmgr.conf
+  no_log: true
   register: rhvpassword
   tags: proxy
 
@@ -918,6 +922,7 @@
 
 - set_fact:
     decode_pass: "{{ rhvpassword['content'] | b64decode | regex_findall('rhv_password = (.+)') | first | b64decode}}"
+  no_log: true
   tags: proxy
 
 
@@ -965,16 +970,17 @@
   slurp:
     src: /etc/workloadmgr.conf
   register: rhvusername
+  no_log: true
   tags: proxy
 
   
 
-- name: grep username using cat
+- name: Check RHV username from workloadmgr.conf
   shell: cat /etc/workloadmgr.conf | grep -e rhv_username
   register: username
   tags: proxy
 
-- name: print msg
+- name: Print RHV username
   debug: 
     msg: "username: {{ username.stdout }}"
   tags: proxy
@@ -983,7 +989,7 @@
     my_user: "{{ username.stdout | regex_findall('rhv_username = (.+)', '\\1') | first }}"
   tags: proxy
    
-- name: print user
+- name: Print actual RHV username
   debug:
     msg: "new: {{ my_user }}"
   tags: proxy
@@ -995,14 +1001,14 @@
 #  tags: proxy
 
 
-- name: adding username
+- name: Add username to vars.yml
   lineinfile:
     dest: "/etc/vars.yml"
     regexp: "rhv_username"
     line: "rhv_username: {{ my_user }}"
   tags: proxy
  
-- name: fetch vars.yml on tvm
+- name: Fetch vars.yml on TVR
   fetch:
     src: /etc/vars.yml
     dest: /opt/stack/imageio-ansible/roles/ovirt_new/tasks/
@@ -1015,7 +1021,7 @@
 - import_tasks: clean_roles.yml
   tags: clean-proxy
 
-- name: copy workloadmgr.conf to host
+- name: Copy workloadmgr.conf to host
   copy:
     src: /etc/tvault-config/tvault-config.conf
     dest: /etc
@@ -1025,14 +1031,15 @@
     - proxy
     - clean-proxy
 
-- name: register floating ip of tvault
+- name: Register floating ip of tvault
   shell: cat /etc/tvault-config.conf | grep -e floating_ipaddress
   register: tvault_ip
+  no_log: true
   tags:
     - proxy
     - clean-proxy
 
-- name: print tvault ip
+- name: Print tvault ip
   debug:
     msg: "tvault_ip: {{ tvault_ip.stdout }}"
   tags: 

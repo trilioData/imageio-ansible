@@ -3,18 +3,21 @@
   copy:
     src: /etc/workloadmgr/workloadmgr.conf
     dest: /etc
+  no_log: true
   tags: clean-proxy
 
 
 - name: extract password from file
   slurp:
     src: /etc/workloadmgr.conf
+  no_log: true
   register: rhvpassword
   tags: clean-proxy
 
   
 - set_fact:
     decode_pass: "{{ rhvpassword['content'] | b64decode | regex_findall('rhv_password = (.+)') | first | b64decode}}"
+  no_log: true
   tags: clean-proxy
 
 
@@ -62,11 +65,12 @@
   slurp:
     src: /etc/workloadmgr.conf
   register: rhvusername
+  no_log: true
   tags: clean-proxy
 
   
 
-- name: grep username using cat
+- name: Check RHV username from workloadmgr.conf
   shell: cat /etc/workloadmgr.conf | grep -e rhv_username
   register: username
   tags: clean-proxy
@@ -98,6 +102,7 @@
 
 - name: include_vars
   include_vars: vars.yml
+  no_log: true
   tags: clean-proxy
 
 - name: sso token
