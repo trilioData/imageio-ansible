@@ -756,22 +756,24 @@
   tags: clean-daemon
   
 # clean S3 directory from host
-- name: Unmount triliovault directory
-  shell: umount tmpfs
-  args:
-    chdir: /var/triliovault
-  when: workload_details.stdout | regex_search('vault_storage_type = s3')
-  tags: clean-daemon
-
-# - name: Retry for umounting Triliovault directory on RHV host
+# - name: Unmount triliovault directory
 #   shell: umount tmpfs
 #   args:
 #     chdir: /var/triliovault
-#   when: 
-#     - "unmount_status.rc != 0 "
-#     -  workload_details.stdout | regex_search('vault_storage_type = s3')
+#   when: workload_details.stdout | regex_search('vault_storage_type = s3')
 #   tags: clean-daemon
-  
+
+- name: Unmount tmpfs directory
+  shell: umount tmpfs
+  when: workload_details.stdout | regex_search('vault_storage_type = s3')
+  ignore_errors: yes
+  register: unmount_status
+  tags: clean-daemon
+
+- name: Retry to unmount tmpfs directory on host
+  shell: umount tmpfs
+  when: workload_details.stdout | regex_search('vault_storage_type = s3') and unmount_status.rc != 0
+  tags: clean-daemon
 
 - name: Unmount triliovault-mounts directory
   shell: umount triliovault-mounts
