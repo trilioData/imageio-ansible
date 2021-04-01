@@ -222,7 +222,7 @@
 - name: change lines in vault.conf
   lineinfile:
     path: /etc/workloadmgr/vault.conf
-    regexp: helper_command = sudo /usr/local/bin/privsep-helper
+    regexp: helper_command = sudo /home/rhv/s3venv/bin/privsep-helper
     line: helper_command = sudo /opt/ovirt-imageio/daemon/datamover/venv/bin/privsep-helper
   when: workload_details.stdout | regex_search('vault_storage_type = s3')
   tags: daemon
