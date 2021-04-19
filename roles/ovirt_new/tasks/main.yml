@@ -178,6 +178,20 @@
     - daemon
     - clean-daemon
 
+- name: copy certs inside host
+  copy:
+    src: /opt/stack/config-certs/ceph.cert
+    dest: /etc/pki/ca-trust/source/anchors/
+    group: kvm
+    owner: vdsm
+  when: workload_details.stdout | regex_search('local_ceph_certs')
+  register: certs
+  tags: daemon
+
+- name: update ca
+  shell: update-ca-trust
+  when: certs is defined
+  tags: daemon
 
 - name: create workloadmgr directory on host
   file:
