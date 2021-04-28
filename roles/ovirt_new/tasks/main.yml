@@ -227,19 +227,26 @@
   when: workload_details.stdout | regex_search('vault_storage_type = s3')
   tags: daemon
 
-
 - name: copy certs inside host
   copy:
     src: /opt/stack/config-certs/ceph.cert
     dest: /opt/ovirt-imageio/
-  when: workload_details.stdout | regex_search('s3_backend_type=localceph')
+  when: workload_details.stdout | regex_search('s3_backend_type = localceph')
   register: certs
   tags: daemon
 
-- name: update ca
-  shell: update-ca-trust
-  when: certs is defined
+- name: change lines in vault.conf
+  lineinfile:
+    path: /etc/workloadmgr/vault.conf
+    regexp: vault_s3_ssl_cert = /opt/stack/config-certs/ceph.cert
+    line: vault_s3_ssl_cert = /opt/ovirt-imageio/ceph.cert
+  when: workload_details.stdout | regex_search('s3_backend_type = localceph')
   tags: daemon
+
+# - name: update ca
+#   shell: update-ca-trust
+#   when: certs is defined
+#   tags: daemon
 
 - name: do the encode
   shell: echo {{ storage_nfs_export | b64encode }}
