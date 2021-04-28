@@ -178,20 +178,6 @@
     - daemon
     - clean-daemon
 
-- name: copy certs inside host
-  copy:
-    src: /opt/stack/config-certs/ceph.cert
-    dest: /etc/pki/ca-trust/source/anchors/
-    group: kvm
-    owner: vdsm
-  when: workload_details.stdout | regex_search('local_ceph_certs')
-  register: certs
-  tags: daemon
-
-- name: update ca
-  shell: update-ca-trust
-  when: certs is defined
-  tags: daemon
 
 - name: create workloadmgr directory on host
   file:
@@ -241,6 +227,19 @@
   when: workload_details.stdout | regex_search('vault_storage_type = s3')
   tags: daemon
 
+
+- name: copy certs inside host
+  copy:
+    src: /opt/stack/config-certs/ceph.cert
+    dest: /opt/ovirt-imageio/
+  when: workload_details.stdout | regex_search('s3_backend_type=localceph')
+  register: certs
+  tags: daemon
+
+- name: update ca
+  shell: update-ca-trust
+  when: certs is defined
+  tags: daemon
 
 - name: do the encode
   shell: echo {{ storage_nfs_export | b64encode }}
