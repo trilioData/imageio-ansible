@@ -231,7 +231,7 @@
   copy:
     src: /opt/stack/config-certs/ceph.cert
     dest: /opt/ovirt-imageio/
-  when: workload_details.stdout | regex_search('s3_backend_type = localceph')
+  when: workload_details.stdout | regex_search('vault_storage_type = s3') and workload_details.stdout | regex_search('s3_backend_type = localceph')
   register: certs
   tags: daemon
 
@@ -240,7 +240,7 @@
     path: /etc/workloadmgr/vault.conf
     regexp: vault_s3_ssl_cert = /opt/stack/config-certs/ceph.cert
     line: vault_s3_ssl_cert = /opt/ovirt-imageio/ceph.cert
-  when: workload_details.stdout | regex_search('s3_backend_type = localceph')
+  when: workload_details.stdout | regex_search('vault_storage_type = s3') and workload_details.stdout | regex_search('s3_backend_type = localceph')
   tags: daemon
 
 # - name: update ca
