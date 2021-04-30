@@ -491,6 +491,13 @@
     - daemon
     - clean-daemon
 
+- name: Pause for 3 minutes to build app cache
+  pause:
+    minutes: 3
+  tags:
+    - daemon
+    - clean-daemon
+
 - debug:
     msg: "trilio-datamover is stopped"
   ignore_errors: yes
@@ -784,14 +791,14 @@
 #   tags: clean-daemon
 
 - name: Unmount tmpfs directory
-  shell: umount tmpfs
+  shell: umount /var/triliovault/tmpfs
   when: workload_details.stdout | regex_search('vault_storage_type = s3')
   ignore_errors: yes
   register: unmount_status
   tags: clean-daemon
 
 - name: Retry to unmount tmpfs directory on host
-  shell: umount tmpfs
+  shell: umount -f /var/triliovault/tmpfs
   when: workload_details.stdout | regex_search('vault_storage_type = s3') and unmount_status.rc != 0
   tags: clean-daemon
 
