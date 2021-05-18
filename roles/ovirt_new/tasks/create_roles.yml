@@ -14,18 +14,18 @@
     - proxy
     #- clean-proxy
     
-- name: create trilioBackup role with login permissions
+- name: create Trilio Backup role 
   ovirt_role:
     auth: "{{ ovirt_auth }}"
     name: TrilioBackup
     description: role created for backup user
     administrative: true
-    permits:
-      - create_disk
+#    permits:
+#      - create_disk
   tags: proxy
 
 
-- name: create trilioMonitor role with login permissions
+- name: create Trilio Monitor role 
   ovirt_role:
     auth: "{{ ovirt_auth }}"
     name: TrilioMonitor
@@ -33,51 +33,51 @@
     administrative: true
   tags: proxy
 
-- name: craete TrilioRestore roles
+- name: create Trilio Restore role
   ovirt_role:
     auth: "{{ ovirt_auth }}"
     name: TrilioRestore
     description: role created for restore user
     administrative: true
-    permits:
-      - create_disk
-      - attach_disk
-      - sparsify_disk
-      - run_vm
-      - create_vm
-      - create_template
+#    permits:
+#      - create_disk
+#      - attach_disk
+#      - sparsify_disk
+#      - run_vm
+#      - create_vm
+#      - create_template
       #- edit_properties_template
   tags: proxy
   
-- name: create monitor role
+- name: create Trilio Backup Admin role
   ovirt_role:
     auth: "{{ ovirt_auth }}"
     name: TrilioBackupAdministrator
     description: role created for backupadmin
     administrative: true
-    permits:
-      - manipulate_permissions
-      - manipulate_users
-      - manipulate_roles
-      - create_disk
-      - delete_disk
-      - attach_disk
-      - sparsify_disk
-      - create_cpu_profile
-      - delete_cpu_profile
-      - update_cpu_profile
-      - assign_cpu_profile
+#    permits:
+#      - manipulate_permissions
+#      - manipulate_users
+#      - manipulate_roles
+#      - create_disk
+#      - delete_disk
+#      - attach_disk
+#      - sparsify_disk
+#      - create_cpu_profile
+#      - delete_cpu_profile
+#      - update_cpu_profile
+#      - assign_cpu_profile
       #- create_vm_pool
       #- delete_vm_pool
-      - reboot_vm
-      - stop_vm
-      - run_vm
-      - create_vm
-      - create_instance
-      - delete_vm
-      - create_template
-      - delete_template
-      - copy_template
+#      - reboot_vm
+#      - stop_vm
+#      - run_vm
+#      - create_vm
+#      - create_instance
+#      - delete_vm
+#      - create_template
+#      - delete_template
+#      - copy_template
       #- manipulate_status
       #- edit_network
   tags: proxy
