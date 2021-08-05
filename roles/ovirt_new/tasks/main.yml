@@ -161,7 +161,7 @@
 
 - name: copy workloadmgr.conf to host
   copy:
-    src: /etc/workloadmgr/workloadmgr.conf
+    src: /etc/workloadmgr/conf/workloadmgr.conf
     dest: /etc
     owner: vdsm
     group: kvm
