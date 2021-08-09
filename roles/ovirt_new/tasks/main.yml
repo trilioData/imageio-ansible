@@ -1085,7 +1085,7 @@
   shell: rm -f vars.yml
   args:
     chdir: /opt/stack/imageio-ansible/roles/ovirt_new/tasks
-  delegate_to: "{{ tvr_ip }}"
+  delegate_to: 126.0.0.1
   tags: 
     - proxy
     - clean-proxy
