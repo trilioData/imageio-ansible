@@ -932,7 +932,7 @@
 
 - name: copy file ansible
   copy:
-    src: /etc/workloadmgr/workloadmgr.conf
+    src: /etc/workloadmgr/conf/workloadmgr.conf
     dest: /etc
   tags: proxy
 
