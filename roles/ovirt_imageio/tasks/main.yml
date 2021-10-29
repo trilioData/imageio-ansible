@@ -381,26 +381,26 @@
   register: tvault_ip
   tags: daemon
 
-- name: print tvault ip
-  debug:
-    msg: "tvault_ip: {{ tvault_ip.stdout }}"
-  tags: daemon
+#- name: print tvault ip
+#  debug:
+#    msg: "tvault_ip: {{ tvault_ip.stdout }}"
+#  tags: daemon
 
-- set_fact:
-    tvr_ip: "{{ tvault_ip.stdout | regex_findall('\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b') | first }}"
-  tags: daemon
+#- set_fact:
+#    tvr_ip: "{{ tvault_ip.stdout | regex_findall('\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b') | first }}"
+#  tags: daemon
 
 #- debug:
 #    var: tvr_ip
 #  tags: daemon
 
-- name: Adding fqdn value to /etc/hosts of TVM
-  lineinfile:
-    path: /etc/hosts
-    regexp: '(^\s+{{ host_ip }}([\w=/\-\.\,\_]+)*)\s*$'
-    line: "{{ host_ip }} {{ fqdn.stdout }}"
-  delegate_to: "{{ tvr_ip }}"
-  tags: daemon
+#- name: Adding fqdn value to /etc/hosts of TVM
+#  lineinfile:
+#    path: /etc/hosts
+#    regexp: '(^\s+{{ host_ip }}([\w=/\-\.\,\_]+)*)\s*$'
+#    line: "{{ host_ip }} {{ fqdn.stdout }}"
+#  delegate_to: "{{ tvr_ip }}"
+#  tags: daemon
 
 - name: Removing to tvault-config.conf from rhv host
   file:
@@ -726,26 +726,26 @@
   register: tvault_ip
   tags: proxy
 
-- name: print tvault ip
-  debug:
-    msg: "tvault_ip: {{ tvault_ip.stdout }}"
-  tags: proxy
+#- name: print tvault ip
+#  debug:
+#    msg: "tvault_ip: {{ tvault_ip.stdout }}"
+#  tags: proxy
 
-- set_fact:
-    tvr_ip: "{{ tvault_ip.stdout | regex_findall('\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b') | first }}"
-  tags: proxy
+#- set_fact:
+#    tvr_ip: "{{ tvault_ip.stdout | regex_findall('\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b') | first }}"
+#  tags: proxy
 
 #- debug:
 #    var: tvr_ip
 #  tags: daemon
 
-- name: Adding fqdn value to /etc/hosts of TVM
-  lineinfile:
-    path: /etc/hosts
-    regexp: '(^\s+{{ engine.stdout }}([\w=/\-\.\,\_]+)*)\s*$'
-    line: "{{ engine.stdout }} {{ fqdn.stdout }}"
-  delegate_to: "{{ tvr_ip }}"
-  tags: proxy
+#- name: Adding fqdn value to /etc/hosts of TVM
+#  lineinfile:
+#    path: /etc/hosts
+#    regexp: '(^\s+{{ engine.stdout }}([\w=/\-\.\,\_]+)*)\s*$'
+#    line: "{{ engine.stdout }} {{ fqdn.stdout }}"
+#  delegate_to: "{{ tvr_ip }}"
+#   tags: proxy
 
 - name: Removing to tvault-config.conf from rhv host
   file:
