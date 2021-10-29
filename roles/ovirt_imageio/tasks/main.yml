@@ -804,10 +804,9 @@
     state: directory
   tags: proxy
 
-
 - name: copy trilio-plugin-resources
   copy:
-    src: /opt/stack/rhvgui-resources/trilio-plugin-resources/
+    src: /temp-rhvgui/rhvgui/trilio-plugin-resources/build/
     dest: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
     directory_mode: yes
   tags: proxy
