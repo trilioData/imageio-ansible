@@ -161,7 +161,7 @@
 
 - name: copy workloadmgr.conf to host
   copy:
-    src: /etc/workloadmgr/workloadmgr.conf
+    src: /etc/workloadmgr/conf/workloadmgr.conf
     dest: /etc
     owner: vdsm
     group: kvm
@@ -222,7 +222,7 @@
 - name: change lines in vault.conf
   lineinfile:
     path: /etc/workloadmgr/vault.conf
-    regexp: helper_command = sudo /home/rhv/s3venv/bin/privsep-helper
+    regexp: helper_command = /home/rhv/myansible/bin/privsep-helper
     line: helper_command = sudo /opt/ovirt-imageio/daemon/datamover/venv/bin/privsep-helper
   when: workload_details.stdout | regex_search('vault_storage_type = s3')
   tags: daemon
@@ -565,32 +565,32 @@
   tags: 
     - daemon
 
-- name: register floating ip of tvault
-  shell: cat /etc/tvault-config.conf | grep -e floating_ipaddress
-  no_log: true
-  register: tvault_ip
-  tags: daemon
+#- name: register floating ip of tvault
+#  shell: cat /etc/tvault-config.conf | grep -e floating_ipaddress
+#  no_log: true
+#  register: tvault_ip
+#  tags: daemon
 
-- name: print tvault ip
-  debug:
-    msg: "tvault_ip: {{ tvault_ip.stdout }}"
-  tags: daemon
+#- name: print tvault ip
+#  debug:
+#    msg: "tvault_ip: {{ tvault_ip.stdout }}"
+#  tags: daemon
 
-- set_fact:
-    tvr_ip: "{{ tvault_ip.stdout | regex_findall('\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b') | first }}"
-  tags: daemon
+#- set_fact:
+#    tvr_ip: "{{ tvault_ip.stdout | regex_findall('\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b') | first }}"
+#  tags: daemon
 
 #- debug:
 #    var: tvr_ip
 #  tags: daemon
 
-- name: Adding fqdn value to /etc/hosts of TVM
-  lineinfile:
-    path: /etc/hosts
-    regexp: '(^\s+{{ target_ip }}([\w=/\-\.\,\_]+)*)\s*$'
-    line: "{{ target_ip }} {{ fqdn.stdout }}"
-  delegate_to: "{{ tvr_ip }}"
-  tags: daemon
+#- name: Adding fqdn value to /etc/hosts of TVM
+#  lineinfile:
+#    path: /etc/hosts
+#    regexp: '(^\s+{{ target_ip }}([\w=/\-\.\,\_]+)*)\s*$'
+#    line: "{{ target_ip }} {{ fqdn.stdout }}"
+#  delegate_to: "{{ tvr_ip }}"
+#  tags: daemon
 
 - name: Removing to tvault-config.conf from rhv host
   file:
@@ -890,7 +890,7 @@
 
 - name: copy trilio-plugin-resources
   copy:
-    src: /opt/stack/rhvgui-resources/trilio-plugin-resources/
+    src: /temp-rhvgui/rhvgui/trilio-plugin-resources/build/
     dest: /usr/share/ovirt-engine/ui-plugins/trilio-plugin-resources
     directory_mode: yes
   tags: proxy
@@ -932,7 +932,7 @@
 
 - name: copy file ansible
   copy:
-    src: /etc/workloadmgr/workloadmgr.conf
+    src: /etc/workloadmgr/conf/workloadmgr.conf
     dest: /etc
   tags: proxy
 
@@ -1085,7 +1085,7 @@
   shell: rm -f vars.yml
   args:
     chdir: /opt/stack/imageio-ansible/roles/ovirt_new/tasks
-  delegate_to: "{{ tvr_ip }}"
+  delegate_to: 127.0.0.1 #localhost
   tags: 
     - proxy
     - clean-proxy
