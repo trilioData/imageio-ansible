@@ -112,6 +112,14 @@
     - daemon
     - proxy
 
+- name: Untar newvenv in ovirt-imageio
+  shell: tar -pxvzf newvenv.tar.gz
+  args:
+    chdir: /opt/ovirt-imageio
+  tags:
+    - daemon
+    - proxy
+
 - name: Change directory permissions
   file:
     path: /opt/ovirt-imageio
@@ -532,7 +540,7 @@
 
 - name: Copy the celery service file
   copy:
-    src: /opt/ovirt-imageio/service-files/ovirt_celery.service
+    src: /opt/ovirt-imageio/service-files/ovirt_celery4.3.service
     dest: /usr/lib/systemd/system/ovirt_celery.service
     remote_src: yes
     owner: vdsm
