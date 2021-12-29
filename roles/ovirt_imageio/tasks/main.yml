@@ -83,6 +83,14 @@
     - clean-daemon
     - clean-proxy
 
+- name: Remove old rpm if alreday installed
+  shell: rpm -e ovirt-imageio_1.5
+  when: output.stdout | regex_search('ovirt-imageio_1.5')
+  tags:
+    - daemon
+    - proxy
+    - clean-daemon
+    - clean-proxy
 
 - name: Install rpm from Gemfury on RHV host
   shell: yum -y install ovirt-imageio_k8s_1.5
